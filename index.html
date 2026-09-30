@@ -1,0 +1,1591 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <title>Pomodoro</title>
+    <link rel="apple-touch-icon" href="icon.png" />
+
+    <style>
+      @font-face {
+        font-family: "OngleipParkDahyeon";
+        src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/2411-3@1.0/Ownglyph_ParkDaHyun.woff2")
+          format("woff2");
+        font-weight: normal;
+        font-display: swap;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        min-height: 100%;
+        margin: 0;
+        overflow: hidden;
+        font-family: "OngleipParkDahyeon", Arial, sans-serif;
+      }
+
+      body {
+        position: relative;
+        background: #222;
+        color: white;
+        isolation: isolate;
+      }
+
+      #bg {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        min-width: 100%;
+        min-height: 100%;
+        object-fit: cover;
+        object-position: center center;
+        z-index: 0;
+        opacity: 1;
+        transition: opacity 0.6s ease;
+        pointer-events: none;
+        user-select: none;
+        -webkit-user-drag: none;
+      }
+
+      #shade {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.16);
+        z-index: 1;
+        pointer-events: none;
+      }
+
+      .wrap {
+        position: relative;
+        z-index: 2;
+        width: 100%;
+        height: 100vh;
+        height: 100dvh;
+        min-height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px max(24px, env(safe-area-inset-right)) 24px
+          max(24px, env(safe-area-inset-left));
+      }
+
+      .timerBox {
+        width: 100%;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        max-width: 900px;
+      }
+
+      .ring {
+        width: min(52vh, 430px);
+        height: min(52vh, 430px);
+        position: relative;
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+      }
+
+      svg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        transform: rotate(-90deg);
+      }
+
+      .track {
+        fill: none;
+        stroke: rgba(255, 255, 255, 0.32);
+        stroke-width: 5;
+      }
+
+      .progress {
+        fill: none;
+        stroke: white;
+        stroke-width: 5;
+        stroke-linecap: round;
+        transition: stroke-dasharray 0.25s linear;
+      }
+
+      .timerContent {
+        position: relative;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+      }
+
+      .time {
+        font-size: clamp(34px, min(9vw, 10vh), 104px);
+        font-weight: 700;
+        letter-spacing: 2px;
+        text-shadow: 0 2px 12px rgba(0, 0, 0, 0.28);
+        white-space: nowrap;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+        transition:
+          opacity 0.15s ease,
+          transform 0.15s ease;
+      }
+
+      .time:hover {
+        opacity: 0.88;
+      }
+
+      .time:active {
+        transform: scale(0.98);
+      }
+
+      .totalFocus {
+        margin-top: 8px;
+        font-size: clamp(16px, 3vw, 25px);
+        font-weight: 400;
+        letter-spacing: 1px;
+        opacity: 0.82;
+        text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        white-space: nowrap;
+      }
+
+      /* =========================
+             링 안 설정 화면
+         ========================= */
+
+      .settingsContent {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transition:
+          opacity 0.18s ease,
+          visibility 0.18s ease;
+      }
+
+      .settingsContent.open {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+      }
+
+      .timerContent.is-settings .time,
+      .timerContent.is-settings .totalFocus {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+
+      /*
+        설정 화면 구조
+        집중       휴식
+        30분       5분
+        취소       저장
+    */
+
+      .settingsRows {
+        display: flex;
+        flex-direction: row;
+        align-items: flex-start;
+        justify-content: center;
+        gap: clamp(30px, 8vw, 60px);
+      }
+
+      .settingsRow {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        min-width: 82px;
+      }
+
+      .settingLabel {
+        margin-bottom: 7px;
+        font-size: 15px;
+        font-weight: 400;
+        line-height: 1;
+        color: rgba(255, 255, 255, 0.76);
+        white-space: nowrap;
+      }
+
+      .settingValue {
+        display: flex;
+        align-items: baseline;
+        justify-content: center;
+        gap: 3px;
+        min-height: 52px;
+      }
+
+      .settingValue input {
+        width: 62px;
+        height: 52px;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.38);
+        outline: 0;
+        background: transparent;
+        color: #fff;
+        font-family: "OngleipParkDahyeon", Arial, sans-serif;
+        font-size: clamp(30px, 6vw, 42px);
+        font-weight: 700;
+        line-height: 1;
+        text-align: center;
+        transition:
+          border-color 0.15s ease,
+          opacity 0.15s ease;
+      }
+
+      .settingValue input:focus {
+        border-bottom-color: rgba(255, 255, 255, 0.85);
+      }
+
+      .settingValue input::-webkit-inner-spin-button,
+      .settingValue input::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+
+      .settingValue input[type="number"] {
+        appearance: textfield;
+        -moz-appearance: textfield;
+      }
+
+      .settingValue span {
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.7);
+        white-space: nowrap;
+      }
+
+      /* 설정 버튼 */
+
+      .settingsRow .settingsApply {
+        margin-top: 14px;
+      }
+
+      .settingsApply {
+        min-width: 68px;
+        min-height: 38px;
+        padding: 7px 15px;
+        border: 1px solid rgba(255, 255, 255, 0.42);
+        border-radius: 999px;
+        background: rgba(0 0 0 / 10%);
+        color: rgba(255, 255, 255, 0.92);
+        font-family: "OngleipParkDahyeon", Arial, sans-serif;
+        font-size: 16px;
+        font-weight: 400;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition:
+          background 0.15s,
+          border-color 0.15s,
+          transform 0.1s;
+      }
+
+      .settingsApply:hover {
+        background: rgba(255, 255, 255, 0.18);
+        border-color: rgba(255, 255, 255, 0.58);
+      }
+
+      .settingsApply:active {
+        background: rgba(255, 255, 255, 0.24);
+        transform: scale(0.97);
+      }
+
+      /* =========================
+               기존 컨트롤
+         ========================= */
+
+      .controls {
+        width: fit-content;
+        max-width: 100%;
+        margin-top: 24px;
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        gap: 9px;
+        justify-content: center;
+        align-items: center;
+      }
+
+      button {
+        font-family: "OngleipParkDahyeon", Arial, sans-serif;
+        border: 1px solid rgba(255, 255, 255, 0.55);
+        background: rgba(0 0 0 / 10%);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        color: white;
+        border-radius: 999px;
+        padding: 10px 17px;
+        font-size: 16px;
+        cursor: pointer;
+        white-space: nowrap;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+        transition:
+          background 0.15s,
+          transform 0.1s;
+      }
+
+      button:hover {
+        background: rgba(255, 255, 255, 0.3);
+      }
+
+      button:active {
+        background: rgba(255, 255, 255, 0.36);
+        transform: scale(0.97);
+      }
+
+      /* =========================
+                 알림
+         ========================= */
+
+      #toast {
+        position: fixed;
+        left: 50%;
+        bottom: max(70px, calc(56px + env(safe-area-inset-bottom)));
+        transform: translateX(-50%) translateY(18px);
+        opacity: 0;
+        transition:
+          opacity 0.35s,
+          transform 0.35s;
+        padding: 10px 16px;
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.55);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        font-size: 13px;
+        pointer-events: none;
+        white-space: nowrap;
+        z-index: 40;
+        max-width: calc(100vw - 48px);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        text-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+      }
+
+      #toast.show {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+
+      /* =========================
+             좁은 세로 화면
+         ========================= */
+
+      @media (orientation: portrait) and (max-width: 1100px) {
+        .wrap {
+          padding: 24px max(16px, env(safe-area-inset-right)) 24px
+            max(16px, env(safe-area-inset-left));
+        }
+
+        .ring {
+          width: min(66vw, 390px);
+          height: min(66vw, 390px);
+        }
+
+        .controls {
+          gap: 12px;
+        }
+
+        .controls button {
+          flex: 0 0 auto;
+          min-width: 0;
+          padding: 10px 17px;
+          font-size: 16px;
+        }
+      }
+
+      @media (orientation: portrait) and (max-width: 395px) {
+        .timerBox {
+          transform: translateY(-10px);
+        }
+
+        .ring {
+          width: min(72vw, 280px);
+          height: min(72vw, 280px);
+        }
+
+        .time {
+          font-size: 64px;
+        }
+
+        .totalFocus {
+          font-size: 18px;
+        }
+
+        .controls {
+          gap: 4px;
+        }
+
+        .controls button {
+          font-size: 11px;
+          padding: 10px 11px;
+        }
+
+        .settingsRows {
+          gap: 20px;
+        }
+
+        .settingsRow {
+          min-width: 76px;
+        }
+
+        .settingValue input {
+          width: 54px;
+          font-size: 29px;
+        }
+
+        .settingLabel {
+          font-size: 14px;
+        }
+
+        .settingsRow .settingsApply {
+          margin-top: 11px;
+        }
+
+        .settingsApply {
+          min-width: 60px;
+          min-height: 36px;
+          padding: 6px 12px;
+          font-size: 14px;
+        }
+      }
+
+      @media (orientation: portrait) and (min-width: 601px) and (max-width: 1100px) {
+        .ring {
+          width: min(68vw, 520px);
+          height: min(68vw, 520px);
+        }
+
+        .time {
+          font-size: clamp(70px, 11vw, 120px);
+        }
+
+        .totalFocus {
+          font-size: 32px;
+        }
+
+        .controls button {
+          font-size: 24px;
+        }
+      }
+
+      /* =========================
+           좁은 화면 대응
+       ========================= */
+
+      @media (max-width: 900px) {
+        .controls {
+          gap: 8px;
+        }
+
+        .controls button {
+          flex: 0 0 auto;
+          min-width: 0;
+          padding: 10px 17px;
+          font-size: 15px;
+        }
+      }
+
+      @media (max-width: 750px) {
+        .controls {
+          gap: 6px;
+        }
+
+        .controls button {
+          padding: 8px 10px;
+          font-size: 13px;
+        }
+      }
+
+      @media (max-width: 620px) {
+        .controls {
+          gap: 5px;
+        }
+
+        .controls button {
+          padding: 8px 9px;
+          font-size: 13px;
+        }
+      }
+
+      /* =========================
+             높이가 낮은 화면
+         ========================= */
+
+      @media (orientation: landscape) and (max-height: 500px) {
+        .ring {
+          width: min(58vh, 280px);
+          height: min(58vh, 280px);
+        }
+
+        .controls {
+          margin-top: 12px;
+        }
+
+        .controls button {
+          flex: 0 0 auto;
+          min-width: 0;
+          padding: 7px 11px;
+          font-size: 14px;
+        }
+
+        .time {
+          font-size: clamp(40px, min(9vw, 12vh), 82px);
+          letter-spacing: 1px;
+        }
+
+        .totalFocus {
+          margin-top: 7px;
+          font-size: 18px;
+        }
+
+        .settingsRows {
+          gap: 24px;
+        }
+
+        .settingLabel {
+          font-size: 15px;
+          margin-bottom: 5px;
+        }
+
+        .settingValue {
+          min-height: 40px;
+        }
+
+        .settingValue input {
+          height: 40px;
+          font-size: 28px;
+        }
+
+        .settingValue span {
+          font-size: 15px;
+        }
+
+        .settingsRow .settingsApply {
+          margin-top: 10px;
+        }
+
+        .settingsApply {
+          min-width: 64px;
+          min-height: 38px;
+          padding: 6px 13px;
+          font-size: 15px;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+          scroll-behavior: auto !important;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <img id="bg" alt="" />
+    <div id="shade"></div>
+    <div id="toast"></div>
+
+    <div class="wrap">
+      <div class="timerBox">
+        <div class="ring" id="ring">
+          <svg viewBox="0 0 200 200" aria-hidden="true">
+            <circle class="track" cx="100" cy="100" r="92"></circle>
+
+            <circle
+              class="progress"
+              id="progress"
+              cx="100"
+              cy="100"
+              r="92"
+            ></circle>
+          </svg>
+
+          <div class="timerContent" id="timerContent">
+            <div
+              class="time"
+              id="time"
+              role="button"
+              tabindex="0"
+              aria-label="타이머 시간 설정"
+            >
+              30:00
+            </div>
+
+            <div class="totalFocus" id="totalFocus" aria-label="누적 집중 시간">
+              00:00
+            </div>
+
+            <div
+              class="settingsContent"
+              id="settingsContent"
+              aria-hidden="true"
+            >
+              <div class="settingsRows">
+                <!-- 집중 -->
+                <div class="settingsRow">
+                  <span class="settingLabel">집중</span>
+
+                  <div class="settingValue">
+                    <input
+                      id="focusInput"
+                      type="number"
+                      min="1"
+                      max="180"
+                      step="1"
+                      value="30"
+                      aria-label="집중 시간(분)"
+                    />
+                    <span>분</span>
+                  </div>
+
+                  <button
+                    id="cancelSettings"
+                    class="settingsApply"
+                    type="button"
+                  >
+                    취소
+                  </button>
+                </div>
+
+                <!-- 휴식 -->
+                <div class="settingsRow">
+                  <span class="settingLabel">휴식</span>
+
+                  <div class="settingValue">
+                    <input
+                      id="breakInput"
+                      type="number"
+                      min="1"
+                      max="60"
+                      step="1"
+                      value="5"
+                      aria-label="휴식 시간(분)"
+                    />
+                    <span>분</span>
+                  </div>
+
+                  <button id="saveSettings" class="settingsApply" type="button">
+                    저장
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button id="start" type="button">▶ 시작</button>
+          <button id="pause" type="button">Ⅱ 정지</button>
+          <button id="skip" type="button">다음 →</button>
+          <button id="reset" type="button">↻ 처음</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const FOCUS_BACKGROUNDS = [
+        "backgrounds/bg1.jpg",
+        "backgrounds/bg2.jpg",
+        "backgrounds/bg3.jpg",
+        "backgrounds/bg4.jpg",
+        "backgrounds/bg5.jpg",
+        "backgrounds/bg6.jpg",
+        "backgrounds/bg7.jpg",
+        "backgrounds/bg8.jpg",
+        "backgrounds/bg9.jpg",
+        "backgrounds/bg10.jpg",
+        "backgrounds/bg11.jpg",
+        "backgrounds/bg12.jpg",
+        "backgrounds/bg13.jpg",
+      ];
+
+      const BREAK_BACKGROUNDS = ["backgrounds/break.jpg"];
+
+      let currentFocusBg = -1;
+      let currentBreakBg = -1;
+      let backgroundChangeTimer = null;
+
+      const bg = document.getElementById("bg");
+      const timeEl = document.getElementById("time");
+      const totalFocusEl = document.getElementById("totalFocus");
+      const progress = document.getElementById("progress");
+      const toast = document.getElementById("toast");
+      const timerContent = document.getElementById("timerContent");
+      const settingsContent = document.getElementById("settingsContent");
+      const focusInput = document.getElementById("focusInput");
+      const breakInput = document.getElementById("breakInput");
+      const saveSettingsBtn = document.getElementById("saveSettings");
+      const cancelSettingsBtn = document.getElementById("cancelSettings");
+
+      const R = 92;
+      const C = 2 * Math.PI * R;
+
+      progress.style.strokeDasharray = `0 ${C}`;
+      progress.style.strokeDashoffset = 0;
+
+      const SETTINGS_KEY = "cozyPomodoroSettings";
+      const FOCUS_TOTAL_KEY = "cozyPomodoroFocusTotal";
+
+      function getLocalDateKey(date = new Date()) {
+        return [
+          date.getFullYear(),
+          String(date.getMonth() + 1).padStart(2, "0"),
+          String(date.getDate()).padStart(2, "0"),
+        ].join("-");
+      }
+
+      function loadFocusTotal() {
+        try {
+          const saved = JSON.parse(localStorage.getItem(FOCUS_TOTAL_KEY));
+
+          if (
+            saved &&
+            saved.date === getLocalDateKey() &&
+            Number.isFinite(Number(saved.seconds))
+          ) {
+            return Math.max(0, Math.floor(Number(saved.seconds)));
+          }
+        } catch (e) {
+          console.warn("오늘 누적 집중 시간 불러오기 실패:", e);
+        }
+
+        return 0;
+      }
+
+      function saveFocusTotal(includeCurrent = false) {
+        const seconds =
+          totalFocusSeconds + (includeCurrent ? getCurrentFocusElapsed() : 0);
+
+        try {
+          localStorage.setItem(
+            FOCUS_TOTAL_KEY,
+            JSON.stringify({
+              date: getLocalDateKey(),
+              seconds: Math.max(0, seconds),
+            }),
+          );
+        } catch (e) {
+          console.warn("오늘 누적 집중 시간 저장 실패:", e);
+        }
+      }
+
+      function loadSettings() {
+        try {
+          const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY));
+
+          if (
+            saved &&
+            Number.isFinite(Number(saved.focusMinutes)) &&
+            Number(saved.focusMinutes) >= 1 &&
+            Number(saved.focusMinutes) <= 180 &&
+            Number.isFinite(Number(saved.breakMinutes)) &&
+            Number(saved.breakMinutes) >= 1 &&
+            Number(saved.breakMinutes) <= 60
+          ) {
+            return {
+              focusMinutes: Number(saved.focusMinutes),
+              breakMinutes: Number(saved.breakMinutes),
+            };
+          }
+        } catch (e) {
+          console.warn("설정 불러오기 실패:", e);
+        }
+
+        return {
+          focusMinutes: 30,
+          breakMinutes: 5,
+        };
+      }
+
+      let settings = loadSettings();
+
+      focusInput.value = settings.focusMinutes;
+      breakInput.value = settings.breakMinutes;
+
+      let settingsOpen = false;
+      let settingsWasRunning = false;
+
+      let phase = "focus";
+      let duration = settings.focusMinutes * 60;
+      let remaining = duration;
+
+      let running = false;
+      let endTime = null;
+
+      let timerId = null;
+      let titleRafId = null;
+      let titleTimeoutId = null;
+
+      /*
+      누적 집중시간 계산의 핵심
+
+      totalFocusSeconds:
+        이미 확정해서 저장한 집중 시간
+
+      focusSegmentStartRemaining:
+        현재 집중 구간이 시작됐을 때의 remaining
+
+      현재 집중 구간에서 실제로 경과한 시간:
+        focusSegmentStartRemaining - remaining
+
+      이렇게 하면 일시정지 / 재개 / 다음 단계에서
+      같은 시간을 두 번 더하지 않는다.
+    */
+      let totalFocusSeconds = loadFocusTotal();
+      let focusTotalDate = getLocalDateKey();
+      let focusSegmentStartRemaining = null;
+
+      function syncTodayFocusTotal() {
+        const today = getLocalDateKey();
+
+        if (today === focusTotalDate) {
+          return false;
+        }
+
+        focusTotalDate = today;
+        totalFocusSeconds = 0;
+
+        if (running && phase === "focus") {
+          focusSegmentStartRemaining = remaining;
+        } else {
+          focusSegmentStartRemaining = null;
+        }
+
+        saveFocusTotal();
+        return true;
+      }
+
+      function getCurrentFocusElapsed() {
+        if (
+          !running ||
+          phase !== "focus" ||
+          focusSegmentStartRemaining === null
+        ) {
+          return 0;
+        }
+
+        // 타이머 표시(ceil)와 같은 기준으로 계산 → 항상 정수
+        return Math.max(
+          0,
+          Math.ceil(focusSegmentStartRemaining) - Math.ceil(remaining),
+        );
+      }
+
+      function commitCurrentFocusTime() {
+        if (phase !== "focus" || focusSegmentStartRemaining === null) {
+          return;
+        }
+
+        const elapsed = Math.max(
+          0,
+          Math.ceil(focusSegmentStartRemaining) - Math.ceil(remaining),
+        );
+
+        if (elapsed > 0) {
+          totalFocusSeconds += elapsed;
+        }
+
+        focusSegmentStartRemaining = null;
+        saveFocusTotal();
+      }
+
+      function changeBackground(list, type) {
+        if (list.length === 0) return;
+
+        let next;
+
+        if (type === "focus") {
+          do {
+            next = Math.floor(Math.random() * list.length);
+          } while (list.length > 1 && next === currentFocusBg);
+
+          currentFocusBg = next;
+        } else {
+          do {
+            next = Math.floor(Math.random() * list.length);
+          } while (list.length > 1 && next === currentBreakBg);
+
+          currentBreakBg = next;
+        }
+
+        bg.style.opacity = "0";
+
+        clearTimeout(backgroundChangeTimer);
+
+        backgroundChangeTimer = setTimeout(() => {
+          bg.onload = () => {
+            bg.style.opacity = "1";
+          };
+
+          bg.onerror = () => {
+            bg.style.opacity = "1";
+            console.warn("배경 이미지 로딩 실패:", list[next]);
+          };
+
+          bg.src = list[next];
+        }, 180);
+      }
+
+      function setBackgroundForPhase() {
+        if (phase === "focus") {
+          changeBackground(FOCUS_BACKGROUNDS, "focus");
+        } else {
+          changeBackground(BREAK_BACKGROUNDS, "break");
+        }
+      }
+
+      setBackgroundForPhase();
+
+      function format(sec) {
+        sec = Math.max(0, Math.ceil(sec));
+
+        return (
+          String(Math.floor(sec / 60)).padStart(2, "0") +
+          ":" +
+          String(sec % 60).padStart(2, "0")
+        );
+      }
+
+      function formatFocusTotal(sec) {
+        /*
+        메인 타이머는 ceil,
+        누적 시간은 floor.
+
+        그래서 시작 직후:
+          타이머 01:00
+          누적 00:00
+
+        정확히 1초가 지나면:
+          타이머 00:59
+          누적 00:01
+
+        시각적으로 초가 같이 넘어간다.
+      */
+        sec = Math.max(0, Math.floor(sec));
+
+        const hours = Math.floor(sec / 3600);
+        const minutes = Math.floor((sec % 3600) / 60);
+        const seconds = sec % 60;
+
+        if (hours > 0) {
+          return (
+            `${hours}:` +
+            `${String(minutes).padStart(2, "0")}:` +
+            `${String(seconds).padStart(2, "0")}`
+          );
+        }
+
+        return (
+          `${String(minutes).padStart(2, "0")}:` +
+          `${String(seconds).padStart(2, "0")}`
+        );
+      }
+
+      function render() {
+        syncTodayFocusTotal();
+
+        timeEl.textContent = format(remaining);
+
+        const displayedFocusSeconds =
+          totalFocusSeconds + getCurrentFocusElapsed();
+
+        totalFocusEl.textContent = formatFocusTotal(displayedFocusSeconds);
+
+        const ratio = Math.max(
+          0,
+          Math.min(1, (duration - remaining) / duration),
+        );
+
+        progress.style.strokeDasharray = `${C * ratio} ${C}`;
+
+        progress.style.strokeDashoffset = 0;
+
+        document.title =
+          `${format(remaining)} · ` + `${phase === "focus" ? "집중" : "휴식"}`;
+      }
+
+      function showToast(msg) {
+        toast.textContent = msg;
+        toast.classList.add("show");
+
+        clearTimeout(showToast.t);
+
+        showToast.t = setTimeout(() => {
+          toast.classList.remove("show");
+        }, 2200);
+      }
+
+      const sounds = {
+        focusStart: new Audio("sounds/focus-start.wav"),
+        focusEnd: new Audio("sounds/focus-end.wav"),
+        breakStart: new Audio("sounds/break-start.wav"),
+        breakEnd: new Audio("sounds/break-end.wav"),
+        pause: new Audio("sounds/pause.wav"),
+      };
+
+      Object.values(sounds).forEach((audio) => {
+        audio.preload = "auto";
+        audio.volume = 1;
+      });
+
+      function beep(kind) {
+        const audio = sounds[kind] || sounds.focusStart;
+
+        try {
+          audio.pause();
+          audio.currentTime = 0;
+
+          const playPromise = audio.play();
+
+          if (playPromise instanceof Promise) {
+            playPromise.catch((error) => {
+              console.warn("알림음 재생 실패:", error);
+            });
+          }
+        } catch (error) {
+          console.warn("알림음 재생 실패:", error);
+        }
+      }
+
+      function stopTimers() {
+        cancelAnimationFrame(timerId);
+        cancelAnimationFrame(titleRafId);
+        clearTimeout(titleTimeoutId);
+
+        timerId = null;
+        titleRafId = null;
+        titleTimeoutId = null;
+      }
+
+      function pauseForSettings() {
+        if (!running) return;
+
+        remaining = Math.max(0, (endTime - Date.now()) / 1000);
+
+        if (phase === "focus") {
+          commitCurrentFocusTime();
+        }
+
+        running = false;
+
+        stopTimers();
+
+        endTime = null;
+
+        render();
+      }
+
+      function openSettings() {
+        if (settingsOpen) return;
+
+        settingsWasRunning = running;
+
+        pauseForSettings();
+
+        settingsOpen = true;
+
+        focusInput.value = settings.focusMinutes;
+
+        breakInput.value = settings.breakMinutes;
+
+        timerContent.classList.add("is-settings");
+
+        settingsContent.classList.add("open");
+
+        settingsContent.setAttribute("aria-hidden", "false");
+      }
+
+      function closeSettings() {
+        settingsOpen = false;
+
+        timerContent.classList.remove("is-settings");
+
+        settingsContent.classList.remove("open");
+
+        settingsContent.setAttribute("aria-hidden", "true");
+      }
+
+      function validateSettings() {
+        const focusMinutes = Number(focusInput.value);
+
+        const breakMinutes = Number(breakInput.value);
+
+        if (
+          !Number.isInteger(focusMinutes) ||
+          focusMinutes < 1 ||
+          focusMinutes > 180
+        ) {
+          showToast("집중 시간은 1~180분으로 입력해주세요.");
+          return false;
+        }
+
+        if (
+          !Number.isInteger(breakMinutes) ||
+          breakMinutes < 1 ||
+          breakMinutes > 60
+        ) {
+          showToast("휴식 시간은 1~60분으로 입력해주세요.");
+          return false;
+        }
+
+        return true;
+      }
+
+      function saveSettings() {
+        if (!validateSettings()) {
+          return false;
+        }
+
+        const focusMinutes = Number(focusInput.value);
+
+        const breakMinutes = Number(breakInput.value);
+
+        settings = {
+          focusMinutes,
+          breakMinutes,
+        };
+
+        try {
+          localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+        } catch (e) {
+          console.warn("설정 저장 실패:", e);
+        }
+
+        const wasRunning = settingsWasRunning;
+
+        const currentPhase = phase;
+
+        /*
+        설정 저장 시 현재 집중 구간을
+        먼저 한 번만 확정한다.
+      */
+        if (phase === "focus" && focusSegmentStartRemaining !== null) {
+          commitCurrentFocusTime();
+        }
+
+        running = false;
+        stopTimers();
+        endTime = null;
+
+        settingsWasRunning = false;
+
+        phase = currentPhase;
+
+        // 설정 변경 전까지 이미 지난 시간
+        const elapsed = Math.max(0, duration - remaining);
+
+        duration =
+          phase === "focus"
+            ? settings.focusMinutes * 60
+            : settings.breakMinutes * 60;
+
+        // 지난 시간은 유지하고, 새 설정 기준으로 남은 시간 계산 (최소 1초)
+        remaining = Math.max(1, duration - elapsed);
+
+        focusSegmentStartRemaining = null;
+
+        setBackgroundForPhase();
+
+        render();
+
+        closeSettings();
+
+        showToast(
+          `설정 저장 완료 · 집중 ${focusMinutes}분 / 휴식 ${breakMinutes}분`,
+        );
+
+        if (wasRunning) {
+          start({ silent: true });
+        }
+
+        return true;
+      }
+
+      function cancelSettings() {
+        focusInput.value = settings.focusMinutes;
+
+        breakInput.value = settings.breakMinutes;
+
+        const shouldResume = settingsWasRunning;
+
+        settingsWasRunning = false;
+
+        closeSettings();
+
+        render();
+
+        if (shouldResume) {
+          start();
+        }
+
+        showToast("설정 변경 취소");
+      }
+
+      timeEl.addEventListener("click", (event) => {
+        event.stopPropagation();
+
+        if (!settingsOpen) {
+          openSettings();
+        }
+      });
+
+      timeEl.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+
+          if (!settingsOpen) {
+            openSettings();
+          }
+        }
+      });
+
+      saveSettingsBtn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        saveSettings();
+      });
+
+      cancelSettingsBtn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        cancelSettings();
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && settingsOpen) {
+          cancelSettings();
+        }
+      });
+
+      [focusInput, breakInput].forEach((input) => {
+        input.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            saveSettings();
+          }
+        });
+      });
+
+      settingsContent.addEventListener("click", (event) => {
+        event.stopPropagation();
+      });
+
+      function start({ silent = false } = {}) {
+        if (running) return;
+        if (settingsOpen) return;
+
+        syncTodayFocusTotal();
+
+        running = true;
+
+        /*
+        현재 focus 구간의 시작점을
+        remaining 기준으로 기록한다.
+      */
+        if (phase === "focus" && focusSegmentStartRemaining === null) {
+          focusSegmentStartRemaining = remaining;
+        }
+
+        endTime = Date.now() + remaining * 1000;
+
+        beep(phase === "focus" ? "focusStart" : "breakStart");
+
+        if (!silent) {
+          showToast(phase === "focus" ? "집중 시작 🍅" : "휴식 시작 ☕");
+        }
+
+        render();
+
+        timerId = requestAnimationFrame(tick);
+
+        startTitleTimer();
+      }
+
+      function tick() {
+        if (!running) return;
+
+        remaining = Math.max(0, (endTime - Date.now()) / 1000);
+
+        if (remaining <= 0) {
+          remaining = 0;
+
+          render();
+
+          transition();
+
+          return;
+        }
+
+        render();
+
+        if (!running) return;
+
+        timerId = requestAnimationFrame(tick);
+      }
+
+      function pause() {
+        if (!running) return;
+
+        remaining = Math.max(0, (endTime - Date.now()) / 1000);
+
+        if (phase === "focus") {
+          commitCurrentFocusTime();
+        }
+
+        running = false;
+
+        stopTimers();
+
+        endTime = null;
+
+        beep("pause");
+
+        render();
+
+        showToast("일시정지");
+      }
+
+      function transition() {
+        /*
+        자동 종료 / 다음 단계 버튼 모두
+        여기로 들어온다.
+
+        focus라면 먼저 현재 focus 시간을
+        한 번만 확정한다.
+      */
+        if (running && endTime !== null) {
+          remaining = Math.max(0, (endTime - Date.now()) / 1000);
+        }
+
+        if (phase === "focus") {
+          commitCurrentFocusTime();
+        }
+
+        running = false;
+
+        stopTimers();
+
+        endTime = null;
+
+        if (phase === "focus") {
+          beep("focusEnd");
+
+          phase = "break";
+
+          duration = settings.breakMinutes * 60;
+
+          remaining = duration;
+
+          focusSegmentStartRemaining = null;
+
+          setBackgroundForPhase();
+
+          showToast(`집중 끝! ${settings.breakMinutes}분 휴식 🌿`);
+        } else {
+          beep("breakEnd");
+
+          phase = "focus";
+
+          duration = settings.focusMinutes * 60;
+
+          remaining = duration;
+
+          focusSegmentStartRemaining = null;
+
+          setBackgroundForPhase();
+
+          showToast("휴식 끝! 다시 집중 🍅");
+        }
+
+        render();
+
+        start();
+      }
+
+      function skip() {
+        if (settingsOpen) return;
+        transition();
+      }
+
+      function reset() {
+        if (settingsOpen) return;
+
+        beep("pause");
+
+        // 현재 실행 중인 타이머 정지
+        if (running && endTime !== null) {
+          remaining = Math.max(0, (endTime - Date.now()) / 1000);
+        }
+
+        running = false;
+        stopTimers();
+        endTime = null;
+
+        focusSegmentStartRemaining = null;
+
+        totalFocusSeconds = 0;
+        focusTotalDate = getLocalDateKey();
+
+        saveFocusTotal();
+
+        phase = "focus";
+        duration = settings.focusMinutes * 60;
+        remaining = duration;
+
+        setBackgroundForPhase();
+        render();
+
+        showToast("처음부터 시작");
+      }
+
+      function updateTabTitle() {
+        if (!running || endTime === null) {
+          return;
+        }
+
+        const currentRemaining = Math.max(0, (endTime - Date.now()) / 1000);
+
+        document.title =
+          `${format(currentRemaining)} · ` +
+          `${phase === "focus" ? "집중" : "휴식"}`;
+      }
+
+      function startTitleTimer() {
+        cancelAnimationFrame(titleRafId);
+        clearTimeout(titleTimeoutId);
+
+        titleRafId = null;
+        titleTimeoutId = null;
+
+        updateTabTitle();
+
+        const titleTick = () => {
+          if (!running || endTime === null) {
+            return;
+          }
+
+          updateTabTitle();
+
+          if (document.visibilityState === "visible" && running) {
+            titleRafId = requestAnimationFrame(titleTick);
+          }
+        };
+
+        if (document.visibilityState === "visible") {
+          titleRafId = requestAnimationFrame(titleTick);
+        } else {
+          titleTimeoutId = setTimeout(function hiddenTitleTick() {
+            if (!running || endTime === null) return;
+
+            if (endTime - Date.now() <= 0) {
+              remaining = 0;
+              render();
+              transition();
+              return;
+            }
+
+            updateTabTitle();
+
+            titleTimeoutId = setTimeout(hiddenTitleTick, 1000);
+          }, 1000);
+        }
+      }
+
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden") {
+          if (running && endTime !== null) {
+            remaining = Math.max(0, (endTime - Date.now()) / 1000);
+          }
+          saveFocusTotal(true);
+        }
+
+        syncTodayFocusTotal();
+
+        if (!running) return;
+
+        remaining = Math.max(0, (endTime - Date.now()) / 1000);
+
+        if (remaining <= 0) {
+          remaining = 0;
+          render();
+          transition();
+          return;
+        }
+
+        render();
+        startTitleTimer();
+      });
+
+      /*
+      페이지가 잠시 백그라운드로 갔다가
+      돌아오는 경우에도 타이머는 endTime을
+      기준으로 계속 정확하게 계산한다.
+    */
+      window.addEventListener("pageshow", () => {
+        if (!running || endTime === null) {
+          return;
+        }
+
+        remaining = Math.max(0, (endTime - Date.now()) / 1000);
+
+        if (remaining <= 0) {
+          remaining = 0;
+          render();
+          transition();
+          return;
+        }
+
+        render();
+        startTitleTimer();
+      });
+
+      window.addEventListener("pagehide", () => {
+        if (running && endTime !== null) {
+          remaining = Math.max(0, (endTime - Date.now()) / 1000);
+        }
+        saveFocusTotal(true);
+      });
+
+      document.getElementById("start").addEventListener("click", () => start());
+
+      document.getElementById("pause").addEventListener("click", pause);
+
+      document.getElementById("skip").addEventListener("click", skip);
+
+      document.getElementById("reset").addEventListener("click", reset);
+
+      render();
+    </script>
+  </body>
+</html>
+<!-- test -->
