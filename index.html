@@ -332,6 +332,17 @@
         align-items: center;
       }
 
+      .resetTotal {
+        margin-top: 12px;
+        padding: 6px 14px;
+        font-size: 14px;
+        opacity: 0.7;
+      }
+
+      .resetTotal:hover {
+        opacity: 1;
+      }
+
       button {
         font-family: "OngleipParkDahyeon", Arial, sans-serif;
         border: 1px solid rgba(255, 255, 255, 0.55);
@@ -391,6 +402,52 @@
       #toast.show {
         opacity: 1;
         transform: translateX(-50%) translateY(0);
+      }
+
+      /* =========================
+           종료 팝업 (작게)
+         ========================= */
+
+      .finishOverlay {
+        position: fixed;
+        inset: 0;
+        z-index: 50;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background: rgba(0, 0, 0, 0.3);
+        opacity: 0;
+        visibility: hidden;
+        transition:
+          opacity 0.18s ease,
+          visibility 0.18s ease;
+      }
+
+      .finishOverlay.open {
+        opacity: 1;
+        visibility: visible;
+      }
+
+      .finishCard {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        padding: 20px 28px;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 22px;
+        background: rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        text-align: center;
+        max-width: 100%;
+      }
+
+      .finishText {
+        font-size: clamp(18px, 4.5vw, 24px);
+        letter-spacing: 1px;
+        text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
       }
 
       /* =========================
@@ -617,6 +674,18 @@
     <div id="shade"></div>
     <div id="toast"></div>
 
+    <div class="finishOverlay" id="finishOverlay" aria-hidden="true">
+      <div
+        class="finishCard"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="finishText"
+      >
+        <div class="finishText" id="finishText"></div>
+        <button id="finishOk" class="settingsApply" type="button">확인</button>
+      </div>
+    </div>
+
     <div class="wrap">
       <div class="timerBox">
         <div class="ring" id="ring">
@@ -709,7 +778,7 @@
           <button id="start" type="button">▶ 시작</button>
           <button id="pause" type="button">Ⅱ 정지</button>
           <button id="skip" type="button">다음 →</button>
-          <button id="reset" type="button">↻ 처음</button>
+          <button id="finish" type="button">■ 종료</button>
         </div>
       </div>
     </div>
@@ -748,6 +817,9 @@
       const breakInput = document.getElementById("breakInput");
       const saveSettingsBtn = document.getElementById("saveSettings");
       const cancelSettingsBtn = document.getElementById("cancelSettings");
+      const finishOverlay = document.getElementById("finishOverlay");
+      const finishText = document.getElementById("finishText");
+      const finishOkBtn = document.getElementById("finishOk");
 
       const R = 92;
       const C = 2 * Math.PI * R;
@@ -766,34 +838,92 @@
         ].join("-");
       }
 
-      function loadFocusTotal() {
+      function nextDateKey(key) {
+        const [y, m, d] = String(key).split("-").map(Number);
+
+        return getLocalDateKey(new Date(y, m - 1, d + 1));
+      }
+
+      /*
+        저장 형식: { date, seconds, carry }
+
+        date    : 화면 누적이 시작된 날짜
+        seconds : 화면에 보이는 누적 집중 시간
+        carry   : seconds 중 자정 이후(다음 날)에 쌓인 몫
+
+        자정을 넘겨도 `종료`를 누르기 전까지는 seconds가 계속 이어진다.
+        `종료`를 누르면 carry만 남기고 새 날짜로 넘어간다.
+      */
+      function loadFocusState() {
+        const today = getLocalDateKey();
+
         try {
           const saved = JSON.parse(localStorage.getItem(FOCUS_TOTAL_KEY));
 
           if (
             saved &&
-            saved.date === getLocalDateKey() &&
+            typeof saved.date === "string" &&
             Number.isFinite(Number(saved.seconds))
           ) {
-            return Math.max(0, Math.floor(Number(saved.seconds)));
+            const seconds = Math.max(0, Math.floor(Number(saved.seconds)));
+            const carry = Number.isFinite(Number(saved.carry))
+              ? Math.min(seconds, Math.max(0, Math.floor(Number(saved.carry))))
+              : 0;
+
+            if (saved.date === today) {
+              return { date: today, seconds, carry };
+            }
+
+            // 종료를 안 누르고 닫았다가 날짜가 바뀐 뒤 연 경우:
+            // 바로 다음 날이면 자정 이후 몫만 이어서, 아니면 0부터.
+            return {
+              date: today,
+              seconds: nextDateKey(saved.date) === today ? carry : 0,
+              carry: 0,
+            };
           }
         } catch (e) {
           console.warn("오늘 누적 집중 시간 불러오기 실패:", e);
         }
 
-        return 0;
+        return { date: today, seconds: 0, carry: 0 };
+      }
+
+      /*
+        elapsed 중에서 자정 이후에 지난 시간.
+        누적이 시작된 날짜와 지금 날짜가 같으면 0.
+      */
+      function postMidnightPart(elapsed) {
+        if (elapsed <= 0 || focusTotalDate === getLocalDateKey()) {
+          return 0;
+        }
+
+        const midnight = new Date();
+        midnight.setHours(0, 0, 0, 0);
+
+        const sinceMidnight = Math.max(
+          0,
+          Math.floor((Date.now() - midnight.getTime()) / 1000),
+        );
+
+        return Math.min(elapsed, sinceMidnight);
       }
 
       function saveFocusTotal(includeCurrent = false) {
-        const seconds =
-          totalFocusSeconds + (includeCurrent ? getCurrentFocusElapsed() : 0);
+        const current = includeCurrent ? getCurrentFocusElapsed() : 0;
+        const seconds = Math.max(0, totalFocusSeconds + current);
+        const carry = Math.min(
+          seconds,
+          carrySeconds + postMidnightPart(current),
+        );
 
         try {
           localStorage.setItem(
             FOCUS_TOTAL_KEY,
             JSON.stringify({
-              date: getLocalDateKey(),
-              seconds: Math.max(0, seconds),
+              date: focusTotalDate,
+              seconds,
+              carry,
             }),
           );
         } catch (e) {
@@ -847,6 +977,8 @@
       let timerId = null;
       let titleRafId = null;
       let titleTimeoutId = null;
+      let hiddenWorker = null;
+      let hiddenWorkerUrl = null;
 
       /*
       누적 집중시간 계산의 핵심
@@ -863,28 +995,53 @@
       이렇게 하면 일시정지 / 재개 / 다음 단계에서
       같은 시간을 두 번 더하지 않는다.
     */
-      let totalFocusSeconds = loadFocusTotal();
-      let focusTotalDate = getLocalDateKey();
+      const initialFocusState = loadFocusState();
+
+      let totalFocusSeconds = initialFocusState.seconds;
+      let focusTotalDate = initialFocusState.date;
+      let carrySeconds = initialFocusState.carry;
       let focusSegmentStartRemaining = null;
 
-      function syncTodayFocusTotal() {
+      let finishPopupOpen = false;
+
+      /*
+        날짜 경계 적용 (`종료`를 누를 때만 실행)
+
+        화면 누적에서 어제 몫을 빼고, 자정 이후에 쌓은 몫(carry)만 남긴다.
+        자정을 안 넘겼으면 아무것도 하지 않는다.
+      */
+      function applyDayBoundary() {
         const today = getLocalDateKey();
 
         if (today === focusTotalDate) {
           return false;
         }
 
+        totalFocusSeconds =
+          nextDateKey(focusTotalDate) === today ? carrySeconds : 0;
+        carrySeconds = 0;
         focusTotalDate = today;
-        totalFocusSeconds = 0;
-
-        if (running && phase === "focus") {
-          focusSegmentStartRemaining = remaining;
-        } else {
-          focusSegmentStartRemaining = null;
-        }
+        focusSegmentStartRemaining = null;
 
         saveFocusTotal();
         return true;
+      }
+
+      /*
+        종료를 안 눌렀더라도, 날짜가 바뀌었고 자정 이후에 쌓인 집중이
+        하나도 없으면(carry가 0) 새 날 00:00으로 자동으로 넘긴다.
+        예) 23:00에 집중을 끝내고 탭을 켜 둔 채 다음 날이 된 경우.
+
+        자정 이후 몫이 있으면 건드리지 않는다. (종료 때 팝업과 함께 정리)
+        타이머가 돌아가는 중이거나 팝업이 떠 있을 때도 건드리지 않는다.
+      */
+      function rolloverIfIdle() {
+        if (running || finishPopupOpen) return;
+        if (focusTotalDate === getLocalDateKey()) return;
+        if (carrySeconds > 0) return;
+
+        applyDayBoundary();
+        render();
       }
 
       function getCurrentFocusElapsed() {
@@ -914,6 +1071,7 @@
         );
 
         if (elapsed > 0) {
+          carrySeconds += postMidnightPart(elapsed);
           totalFocusSeconds += elapsed;
         }
 
@@ -1013,15 +1171,28 @@
         );
       }
 
-      function render() {
-        syncTodayFocusTotal();
+      function formatHMS(sec) {
+        sec = Math.max(0, Math.floor(sec));
 
+        return [
+          Math.floor(sec / 3600),
+          Math.floor((sec % 3600) / 60),
+          sec % 60,
+        ]
+          .map((n) => String(n).padStart(2, "0"))
+          .join(":");
+      }
+
+      function render() {
         timeEl.textContent = format(remaining);
 
-        const displayedFocusSeconds =
-          totalFocusSeconds + getCurrentFocusElapsed();
+        // 종료 팝업이 떠 있는 동안은 합계를 그대로 두고, 닫을 때 갱신한다.
+        if (!finishPopupOpen) {
+          const displayedFocusSeconds =
+            totalFocusSeconds + getCurrentFocusElapsed();
 
-        totalFocusEl.textContent = formatFocusTotal(displayedFocusSeconds);
+          totalFocusEl.textContent = formatFocusTotal(displayedFocusSeconds);
+        }
 
         const ratio = Math.max(
           0,
@@ -1079,7 +1250,106 @@
         }
       }
 
+      /*
+        마지막 5초 카운트다운 틱 소리
+        - 파일 없이 WebAudio로 짧은 "똑" 소리를 만든다.
+        - 5, 4, 3, 2, 1초 남았을 때 각각 한 번씩 울린다.
+        - 집중/휴식 모두 적용된다.
+      */
+      const COUNTDOWN_SECONDS = 5;
+      // 카운트다운 소리 크기 (1 = 기본, 숫자를 키울수록 커짐)
+      const TICK_VOLUME = 3;
+      let tickCtx = null;
+      let tickMaster = null;
+      let lastTickSecond = null;
+
+      function unlockTickAudio() {
+        try {
+          if (!tickCtx) {
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            if (!Ctx) return;
+            tickCtx = new Ctx();
+
+            // 마스터 볼륨 → 컴프레서(찢어짐 방지) → 스피커
+            const compressor = tickCtx.createDynamicsCompressor();
+            compressor.threshold.value = -10;
+            compressor.knee.value = 0;
+            compressor.ratio.value = 20;
+            compressor.attack.value = 0.001;
+            compressor.release.value = 0.06;
+
+            tickMaster = tickCtx.createGain();
+            tickMaster.gain.value = TICK_VOLUME;
+
+            tickMaster.connect(compressor);
+            compressor.connect(tickCtx.destination);
+          }
+          if (tickCtx.state !== "running") {
+            const p = tickCtx.resume();
+            if (p && p.catch) p.catch(() => {});
+          }
+        } catch (error) {
+          console.warn("틱 소리 준비 실패:", error);
+        }
+      }
+
+      function playTick() {
+        if (!tickCtx || tickCtx.state !== "running") {
+          // 브라우저가 컨텍스트를 멈춰 둔 경우 다시 깨워 둔다.
+          unlockTickAudio();
+          return;
+        }
+
+        const t = tickCtx.currentTime;
+
+        // 낮고 둥근 "동" 소리: 음높이 변화 없이 부드럽게 울렸다 사라짐
+        const gain = tickCtx.createGain();
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(1, t + 0.012);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+        gain.connect(tickMaster);
+
+        [
+          [587, 1], // 기본음 (레)
+          [1174, 0.25], // 한 옥타브 위를 살짝 섞어 따뜻하게
+        ].forEach(([freq, level]) => {
+          const osc = tickCtx.createOscillator();
+          const g = tickCtx.createGain();
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(freq, t);
+          g.gain.value = level;
+          osc.connect(g);
+          g.connect(gain);
+          osc.start(t);
+          osc.stop(t + 0.47);
+        });
+      }
+
+      function countdownTick() {
+        if (!running || endTime === null) return;
+
+        const secondsLeft = Math.ceil((endTime - Date.now()) / 1000);
+
+        if (secondsLeft < 1 || secondsLeft > COUNTDOWN_SECONDS) return;
+        if (secondsLeft === lastTickSecond) return;
+
+        lastTickSecond = secondsLeft;
+        playTick();
+      }
+
+      function stopHiddenTicker() {
+        if (hiddenWorker) {
+          hiddenWorker.terminate();
+          hiddenWorker = null;
+        }
+        if (hiddenWorkerUrl) {
+          URL.revokeObjectURL(hiddenWorkerUrl);
+          hiddenWorkerUrl = null;
+        }
+      }
+
       function stopTimers() {
+        stopHiddenTicker();
         cancelAnimationFrame(timerId);
         cancelAnimationFrame(titleRafId);
         clearTimeout(titleTimeoutId);
@@ -1282,8 +1552,25 @@
       });
 
       document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && finishPopupOpen) {
+          closeFinishPopup();
+          return;
+        }
+
         if (event.key === "Escape" && settingsOpen) {
           cancelSettings();
+        }
+      });
+
+      finishOkBtn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        closeFinishPopup();
+      });
+
+      finishOverlay.addEventListener("click", (event) => {
+        // 팝업 바깥(어두운 영역)을 누르면 닫는다.
+        if (event.target === finishOverlay) {
+          closeFinishPopup();
         }
       });
 
@@ -1304,8 +1591,6 @@
         if (running) return;
         if (settingsOpen) return;
 
-        syncTodayFocusTotal();
-
         running = true;
 
         /*
@@ -1317,6 +1602,9 @@
         }
 
         endTime = Date.now() + remaining * 1000;
+
+        unlockTickAudio();
+        lastTickSecond = Math.ceil(remaining);
 
         beep(phase === "focus" ? "focusStart" : "breakStart");
 
@@ -1345,6 +1633,8 @@
 
           return;
         }
+
+        countdownTick();
 
         render();
 
@@ -1437,14 +1727,44 @@
         transition();
       }
 
-      function reset() {
-        if (settingsOpen) return;
+      function openFinishPopup(seconds) {
+        finishPopupOpen = true;
+
+        finishText.textContent = `🥳 오늘 ${formatHMS(seconds)} 집중했어요!`;
+
+        finishOverlay.classList.add("open");
+        finishOverlay.setAttribute("aria-hidden", "false");
+
+        finishOkBtn.focus();
+      }
+
+      function closeFinishPopup() {
+        if (!finishPopupOpen) return;
+
+        finishPopupOpen = false;
+
+        finishOverlay.classList.remove("open");
+        finishOverlay.setAttribute("aria-hidden", "true");
+
+        // 이제 화면 합계를 새 값(자정 이후 몫)으로 맞춘다.
+        render();
+      }
+
+      /*
+        종료: 정지 + 집중 처음으로 + 날짜 경계 적용
+        자정을 넘겼으면 팝업으로 하루 합계를 먼저 보여준다.
+      */
+      function finishSession() {
+        if (settingsOpen || finishPopupOpen) return;
 
         beep("pause");
 
-        // 현재 실행 중인 타이머 정지
         if (running && endTime !== null) {
           remaining = Math.max(0, (endTime - Date.now()) / 1000);
+        }
+
+        if (running && phase === "focus") {
+          commitCurrentFocusTime();
         }
 
         running = false;
@@ -1453,19 +1773,28 @@
 
         focusSegmentStartRemaining = null;
 
-        totalFocusSeconds = 0;
-        focusTotalDate = getLocalDateKey();
-
-        saveFocusTotal();
-
         phase = "focus";
         duration = settings.focusMinutes * 60;
         remaining = duration;
 
         setBackgroundForPhase();
-        render();
 
-        showToast("처음부터 시작");
+        const crossedMidnight = focusTotalDate !== getLocalDateKey();
+        const summarySeconds = totalFocusSeconds;
+
+        if (crossedMidnight && summarySeconds > 0) {
+          // 날짜 정리는 지금 저장하고, 팝업이 떠 있는 동안에는
+          // 화면 합계를 그대로 둔다. (닫을 때 새 값으로 갱신)
+          applyDayBoundary();
+          openFinishPopup(summarySeconds);
+          render();
+          return;
+        }
+
+        applyDayBoundary();
+        saveFocusTotal();
+        render();
+        showToast("종료");
       }
 
       function updateTabTitle() {
@@ -1480,9 +1809,58 @@
           `${phase === "focus" ? "집중" : "휴식"}`;
       }
 
+      /*
+        탭이 숨겨졌을 때(다른 탭을 보고 있을 때)는 브라우저가
+        setTimeout을 1초 단위로 몰아서 실행해서 2초씩 건너뛰기도 한다.
+        Web Worker의 타이머는 이 제한을 받지 않으므로 0.2초마다
+        깨워서 남은 시간을 다시 계산한다. (endTime 기준이라 정확함)
+      */
+      function hiddenTick() {
+        if (!running || endTime === null) {
+          stopHiddenTicker();
+          return;
+        }
+
+        if (endTime - Date.now() <= 0) {
+          remaining = 0;
+          render();
+          transition();
+          return;
+        }
+
+        countdownTick();
+        updateTabTitle();
+      }
+
+      function startHiddenTicker() {
+        try {
+          const blob = new Blob(
+            ["setInterval(function(){postMessage(0)},200)"],
+            { type: "text/javascript" },
+          );
+          hiddenWorkerUrl = URL.createObjectURL(blob);
+          hiddenWorker = new Worker(hiddenWorkerUrl);
+          hiddenWorker.onmessage = hiddenTick;
+          return;
+        } catch (error) {
+          stopHiddenTicker();
+        }
+
+        // Worker를 못 쓰는 환경용 대체 경로
+        const fallback = () => {
+          titleTimeoutId = null;
+          hiddenTick();
+          if (running && endTime !== null && titleTimeoutId === null) {
+            titleTimeoutId = setTimeout(fallback, 250);
+          }
+        };
+        titleTimeoutId = setTimeout(fallback, 250);
+      }
+
       function startTitleTimer() {
         cancelAnimationFrame(titleRafId);
         clearTimeout(titleTimeoutId);
+        stopHiddenTicker();
 
         titleRafId = null;
         titleTimeoutId = null;
@@ -1504,20 +1882,7 @@
         if (document.visibilityState === "visible") {
           titleRafId = requestAnimationFrame(titleTick);
         } else {
-          titleTimeoutId = setTimeout(function hiddenTitleTick() {
-            if (!running || endTime === null) return;
-
-            if (endTime - Date.now() <= 0) {
-              remaining = 0;
-              render();
-              transition();
-              return;
-            }
-
-            updateTabTitle();
-
-            titleTimeoutId = setTimeout(hiddenTitleTick, 1000);
-          }, 1000);
+          startHiddenTicker();
         }
       }
 
@@ -1527,9 +1892,9 @@
             remaining = Math.max(0, (endTime - Date.now()) / 1000);
           }
           saveFocusTotal(true);
+        } else {
+          rolloverIfIdle();
         }
-
-        syncTodayFocusTotal();
 
         if (!running) return;
 
@@ -1552,6 +1917,8 @@
       기준으로 계속 정확하게 계산한다.
     */
       window.addEventListener("pageshow", () => {
+        rolloverIfIdle();
+
         if (!running || endTime === null) {
           return;
         }
@@ -1576,16 +1943,18 @@
         saveFocusTotal(true);
       });
 
-      document.getElementById("start").addEventListener("click", () => start());
+      document.getElementById("start").addEventListener("click", () => {
+        rolloverIfIdle();
+        start();
+      });
 
       document.getElementById("pause").addEventListener("click", pause);
 
       document.getElementById("skip").addEventListener("click", skip);
 
-      document.getElementById("reset").addEventListener("click", reset);
+      document.getElementById("finish").addEventListener("click", finishSession);
 
       render();
     </script>
   </body>
 </html>
-<!-- test -->
