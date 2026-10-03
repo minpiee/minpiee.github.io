@@ -332,6 +332,88 @@
         align-items: center;
       }
 
+      .calOpen {
+        position: fixed;
+        top: calc(env(safe-area-inset-top, 0px) + 12px);
+        right: 12px;
+        z-index: 60;
+        width: 44px;
+        height: 44px;
+        padding: 0;
+        border-radius: 50%;
+        font-size: 22px;
+        line-height: 42px;
+        cursor: pointer;
+      }
+      /* 전체 화면 캘린더 페이지 */
+      .calModal {
+        position: fixed;
+        inset: 0;
+        z-index: 50;
+        overflow-y: auto;
+        background: rgba(0, 0, 0, 0.45);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        color: #fff;
+        text-align: center;
+        text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      }
+      .calModal[hidden] { display: none; }
+      .calCard {
+        box-sizing: border-box;
+        width: 100%;
+        max-width: 640px;
+        min-height: 100%;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: calc(env(safe-area-inset-top, 0px) + 70px) 16px
+          calc(env(safe-area-inset-bottom, 0px) + 70px);
+      }
+      .calHead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; font-size: 28px; }
+      .calHead strong { font-weight: 400; letter-spacing: 2px; }
+      .calHead button {
+        width: 48px;
+        height: 48px;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        box-shadow: none;
+        font-size: 32px;
+        line-height: 48px;
+        cursor: pointer;
+      }
+      @media (max-width: 600px) {
+        .calOpen {
+          top: calc(env(safe-area-inset-top, 0px) + 8px);
+          right: 8px;
+          width: 28px;
+          height: 28px;
+          font-size: 13px;
+          line-height: 26px;
+        }
+        .calCard {
+          padding-top: calc(env(safe-area-inset-top, 0px) + 46px);
+          padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 46px);
+        }
+      }
+      .calHead button:hover,
+      .calHead button:active {
+        background: transparent;
+        transform: none;
+      }
+      .calHead button:active { opacity: 0.5; }
+      .calGrid { display: grid; grid-template-columns: repeat(7, 1fr); row-gap: 6px; }
+      .calDow { font-size: 14px; padding-bottom: 8px; color: rgba(255, 255, 255, 0.7); }
+      .calDay { min-height: 76px; padding: 8px 1px; font-size: 17px; }
+      .calDay b { display: block; font-weight: 400; color: rgba(255, 255, 255, 0.8); }
+      .calDay.today b { color: #fff; text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px; }
+      .calDay span { display: block; margin-top: 6px; font-size: 12px; line-height: 1.25; }
+      .calSummary { margin-top: 22px; font-size: 17px; color: rgba(255, 255, 255, 0.8); }
+
       .resetTotal {
         margin-top: 12px;
         padding: 6px 14px;
@@ -672,6 +754,20 @@
   <body>
     <img id="bg" alt="" />
     <div id="shade"></div>
+    <button id="openCalendar" class="calOpen" type="button" aria-label="캘린더">
+      ☰
+    </button>
+    <div id="calendarModal" class="calModal" hidden>
+      <div class="calCard">
+        <div class="calHead">
+          <button id="calPrev" type="button" aria-label="이전 달">‹</button>
+          <strong id="calTitle"></strong>
+          <button id="calNext" type="button" aria-label="다음 달">›</button>
+        </div>
+        <div id="calGrid" class="calGrid"></div>
+        <div id="calSummary" class="calSummary"></div>
+      </div>
+    </div>
     <div id="toast"></div>
 
     <div class="finishOverlay" id="finishOverlay" aria-hidden="true">
@@ -928,6 +1024,26 @@
           );
         } catch (e) {
           console.warn("오늘 누적 집중 시간 저장 실패:", e);
+        }
+
+        // 캘린더용 날짜별 기록 (자정 이후 몫(carry)은 다음 날 몫이라 제외)
+        try {
+          const history = loadHistory();
+          history[focusTotalDate] = Math.max(0, seconds - carry);
+          localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+        } catch (e) {
+          console.warn("날짜별 기록 저장 실패:", e);
+        }
+      }
+
+      const HISTORY_KEY = "cozyPomodoroHistory";
+
+      function loadHistory() {
+        try {
+          const h = JSON.parse(localStorage.getItem(HISTORY_KEY));
+          return h && typeof h === "object" ? h : {};
+        } catch (e) {
+          return {};
         }
       }
 
@@ -1251,9 +1367,8 @@
       }
 
       /*
-        마지막 5초 카운트다운 틱 소리
+        마지막 10초 카운트다운 틱 소리
         - 파일 없이 WebAudio로 짧은 "똑" 소리를 만든다.
-        - 5, 4, 3, 2, 1초 남았을 때 각각 한 번씩 울린다.
         - 집중/휴식 모두 적용된다.
       */
       const COUNTDOWN_SECONDS = 10;
@@ -1262,6 +1377,41 @@
       let tickCtx = null;
       let tickMaster = null;
       let lastTickSecond = null;
+      let keepAliveOsc = null;
+
+      /*
+        오디오 장치(특히 블루투스/노트북 스피커)는 한참 소리가 없으면
+        절전 상태로 들어가서, 맨 처음 소리의 앞부분이 작게 나오거나
+        통째로 사라진다. 타이머가 도는 동안 사람 귀에는 안 들리는
+        아주 작은 저음을 계속 흘려서 장치를 깨어 있게 한다.
+      */
+      function startKeepAlive() {
+        if (!tickCtx || keepAliveOsc) return;
+        try {
+          const osc = tickCtx.createOscillator();
+          const g = tickCtx.createGain();
+          osc.type = "sine";
+          osc.frequency.value = 30;
+          g.gain.value = 0.003;
+          osc.connect(g);
+          g.connect(tickCtx.destination);
+          osc.start();
+          keepAliveOsc = osc;
+        } catch (error) {
+          console.warn("오디오 유지 실패:", error);
+        }
+      }
+
+      function stopKeepAlive() {
+        if (!keepAliveOsc) return;
+        try {
+          keepAliveOsc.stop();
+          keepAliveOsc.disconnect();
+        } catch (error) {
+          /* 이미 멈춘 경우 무시 */
+        }
+        keepAliveOsc = null;
+      }
 
       function unlockTickAudio() {
         try {
@@ -1288,6 +1438,7 @@
             const p = tickCtx.resume();
             if (p && p.catch) p.catch(() => {});
           }
+          startKeepAlive();
         } catch (error) {
           console.warn("틱 소리 준비 실패:", error);
         }
@@ -1300,7 +1451,7 @@
           return;
         }
 
-        const t = tickCtx.currentTime;
+        const t = tickCtx.currentTime + 0.03;
 
         // 낮고 둥근 "동" 소리: 음높이 변화 없이 부드럽게 울렸다 사라짐
         const gain = tickCtx.createGain();
@@ -1350,6 +1501,7 @@
 
       function stopTimers() {
         stopHiddenTicker();
+        stopKeepAlive();
         cancelAnimationFrame(timerId);
         cancelAnimationFrame(titleRafId);
         clearTimeout(titleTimeoutId);
@@ -1955,6 +2107,85 @@
       document.getElementById("finish").addEventListener("click", finishSession);
 
       render();
+
+      /* 캘린더: 날짜별 집중시간 보기 */
+      const calModal = document.getElementById("calendarModal");
+      let calYear = 0;
+      let calMonth = 0;
+
+      function fmtShort(sec) {
+        sec = Math.floor(sec);
+        if (sec <= 0) return "";
+        const h = Math.floor(sec / 3600);
+        const m = Math.floor((sec % 3600) / 60);
+        return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      }
+
+      function renderCalendar() {
+        const history = loadHistory();
+        const today = getLocalDateKey();
+        if (focusTotalDate === today) {
+          history[today] = Math.max(
+            0,
+            totalFocusSeconds + getCurrentFocusElapsed() - carrySeconds,
+          );
+        }
+
+        const pad = (n) => String(n).padStart(2, "0");
+        const first = new Date(calYear, calMonth, 1).getDay();
+        const days = new Date(calYear, calMonth + 1, 0).getDate();
+        let html = ["일", "월", "화", "수", "목", "금", "토"]
+          .map((d) => `<div class="calDow">${d}</div>`)
+          .join("");
+        html += "<div></div>".repeat(first);
+
+        let monthTotal = 0;
+        let activeDays = 0;
+        for (let d = 1; d <= days; d++) {
+          const key = `${calYear}-${pad(calMonth + 1)}-${pad(d)}`;
+          const sec = Math.floor(Number(history[key]) || 0);
+          if (sec > 0) {
+            monthTotal += sec;
+            activeDays++;
+          }
+          const isToday = key === today;
+          html += `<div class="calDay${key === today ? " today" : ""}"><b>${d}</b><span>${isToday ? "" : fmtShort(sec)}</span></div>`;
+        }
+
+        document.getElementById("calTitle").textContent = `${calYear} / ${calMonth + 1}`;
+        document.getElementById("calGrid").innerHTML = html;
+
+        document.getElementById("calSummary").textContent =
+          `이번 달 총 ${Math.floor(monthTotal / 3600)}시간 ${Math.floor((monthTotal % 3600) / 60)}분 · ${activeDays}일 집중`;
+      }
+
+      function moveMonth(delta) {
+        const d = new Date(calYear, calMonth + delta, 1);
+        calYear = d.getFullYear();
+        calMonth = d.getMonth();
+        renderCalendar();
+      }
+
+      const calBtn = document.getElementById("openCalendar");
+
+      function setCalendarOpen(open) {
+        if (open) {
+          const now = new Date();
+          calYear = now.getFullYear();
+          calMonth = now.getMonth();
+          renderCalendar();
+        }
+        calModal.hidden = !open;
+        calBtn.textContent = open ? "✕" : "☰";
+        calBtn.setAttribute("aria-label", open ? "캘린더 닫기" : "캘린더");
+      }
+
+      calBtn.addEventListener("click", () => setCalendarOpen(calModal.hidden));
+      document.getElementById("calPrev").addEventListener("click", () => moveMonth(-1));
+      document.getElementById("calNext").addEventListener("click", () => moveMonth(1));
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && !calModal.hidden) setCalendarOpen(false);
+      });
     </script>
   </body>
 </html>
