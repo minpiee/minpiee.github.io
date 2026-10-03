@@ -2148,8 +2148,7 @@
             monthTotal += sec;
             activeDays++;
           }
-          const isToday = key === today;
-          html += `<div class="calDay${key === today ? " today" : ""}"><b>${d}</b><span>${isToday ? "" : fmtShort(sec)}</span></div>`;
+          html += `<div class="calDay${key === today ? " today" : ""}"><b>${d}</b><span>${fmtShort(sec)}</span></div>`;
         }
 
         document.getElementById("calTitle").textContent = `${calYear} / ${calMonth + 1}`;
