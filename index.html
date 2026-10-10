@@ -1,0 +1,2507 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <title>Pomodoro</title>
+    <link rel="apple-touch-icon" href="icon.png" />
+
+    <style>
+      @font-face {
+        font-family: "OngleipParkDahyeon";
+        src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/2411-3@1.0/Ownglyph_ParkDaHyun.woff2")
+          format("woff2");
+        font-weight: normal;
+        font-display: swap;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        min-height: 100%;
+        margin: 0;
+        overflow: hidden;
+        font-family: "OngleipParkDahyeon", Arial, sans-serif;
+      }
+
+      body {
+        position: relative;
+        background: #222;
+        color: white;
+        isolation: isolate;
+      }
+
+      #bg {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        min-width: 100%;
+        min-height: 100%;
+        object-fit: cover;
+        object-position: center center;
+        z-index: 0;
+        opacity: 1;
+        transition: opacity 0.6s ease;
+        pointer-events: none;
+        user-select: none;
+        -webkit-user-drag: none;
+      }
+
+      #shade {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.16);
+        z-index: 1;
+        pointer-events: none;
+      }
+
+      .wrap {
+        position: relative;
+        z-index: 2;
+        width: 100%;
+        height: 100vh;
+        height: 100dvh;
+        min-height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px max(24px, env(safe-area-inset-right)) 24px
+          max(24px, env(safe-area-inset-left));
+      }
+
+      .timerBox {
+        width: 100%;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        max-width: 900px;
+      }
+
+      .ring {
+        width: min(52vh, 430px);
+        height: min(52vh, 430px);
+        position: relative;
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+      }
+
+      svg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        transform: rotate(-90deg);
+      }
+
+      .track {
+        fill: none;
+        stroke: rgba(255, 255, 255, 0.32);
+        stroke-width: 5;
+      }
+
+      .progress {
+        fill: none;
+        stroke: white;
+        stroke-width: 5;
+        stroke-linecap: round;
+        transition: stroke-dasharray 0.25s linear;
+      }
+
+      .timerContent {
+        position: relative;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+      }
+
+      .time {
+        font-size: clamp(34px, min(9vw, 10vh), 104px);
+        font-weight: 700;
+        letter-spacing: 2px;
+        text-shadow: 0 2px 12px rgba(0, 0, 0, 0.28);
+        white-space: nowrap;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+        transition:
+          opacity 0.15s ease,
+          transform 0.15s ease;
+      }
+
+      .time:hover {
+        opacity: 0.88;
+      }
+
+      .time:active {
+        transform: scale(0.98);
+      }
+
+      .totalFocus {
+        margin-top: 8px;
+        font-size: clamp(16px, 3vw, 25px);
+        font-weight: 400;
+        letter-spacing: 1px;
+        opacity: 0.82;
+        text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        white-space: nowrap;
+      }
+
+      /* =========================
+             링 안 설정 화면
+         ========================= */
+
+      .settingsContent {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transition:
+          opacity 0.18s ease,
+          visibility 0.18s ease;
+      }
+
+      .settingsContent.open {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+      }
+
+      .timerContent.is-settings .time,
+      .timerContent.is-settings .totalFocus {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+
+      /*
+        설정 화면 구조
+        집중       휴식
+        30분       5분
+        취소       저장
+    */
+
+      .settingsRows {
+        display: flex;
+        flex-direction: row;
+        align-items: flex-start;
+        justify-content: center;
+        gap: clamp(30px, 8vw, 60px);
+      }
+
+      .settingsRow {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        min-width: 82px;
+      }
+
+      .settingLabel {
+        margin-bottom: 7px;
+        font-size: 15px;
+        font-weight: 400;
+        line-height: 1;
+        color: rgba(255, 255, 255, 0.76);
+        white-space: nowrap;
+      }
+
+      .settingValue {
+        display: flex;
+        align-items: baseline;
+        justify-content: center;
+        gap: 3px;
+        min-height: 52px;
+      }
+
+      .settingValue input {
+        width: 62px;
+        height: 52px;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.38);
+        outline: 0;
+        background: transparent;
+        color: #fff;
+        font-family: "OngleipParkDahyeon", Arial, sans-serif;
+        font-size: clamp(30px, 6vw, 42px);
+        font-weight: 700;
+        line-height: 1;
+        text-align: center;
+        transition:
+          border-color 0.15s ease,
+          opacity 0.15s ease;
+      }
+
+      .settingValue input:focus {
+        border-bottom-color: rgba(255, 255, 255, 0.85);
+      }
+
+      .settingValue input::-webkit-inner-spin-button,
+      .settingValue input::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+
+      .settingValue input[type="number"] {
+        appearance: textfield;
+        -moz-appearance: textfield;
+      }
+
+      .settingValue span {
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.7);
+        white-space: nowrap;
+      }
+
+      /* 설정 버튼 */
+
+      .settingsRow .settingsApply {
+        margin-top: 14px;
+      }
+
+      .settingsApply {
+        min-width: 68px;
+        min-height: 38px;
+        padding: 7px 15px;
+        border: 1px solid rgba(255, 255, 255, 0.42);
+        border-radius: 999px;
+        background: rgba(0 0 0 / 10%);
+        color: rgba(255, 255, 255, 0.92);
+        font-family: "OngleipParkDahyeon", Arial, sans-serif;
+        font-size: 16px;
+        font-weight: 400;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition:
+          background 0.15s,
+          border-color 0.15s,
+          transform 0.1s;
+      }
+
+      .settingsApply:hover {
+        background: rgba(255, 255, 255, 0.18);
+        border-color: rgba(255, 255, 255, 0.58);
+      }
+
+      .settingsApply:active {
+        background: rgba(255, 255, 255, 0.24);
+        transform: scale(0.97);
+      }
+
+      /* =========================
+               기존 컨트롤
+         ========================= */
+
+      .controls {
+        width: fit-content;
+        max-width: 100%;
+        margin-top: 24px;
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        gap: 9px;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .authOpen {
+        position: fixed;
+        top: calc(env(safe-area-inset-top, 0px) + 12px);
+        right: 66px;
+        z-index: 60;
+        box-sizing: border-box;
+        min-height: 44px;
+        padding: 8px 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(255, 255, 255, 0.45);
+        border-radius: 999px;
+        background: rgba(0 0 0 / 10%);
+        color: #fff;
+        font: inherit;
+        font-size: 15px;
+        line-height: 1;
+        white-space: nowrap;
+        cursor: pointer;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+      }
+      #appShell[hidden],
+      .authModal[hidden] {
+        display: none !important;
+      }
+      .authModal {
+        position: fixed;
+        inset: 0;
+        z-index: 30;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: transparent;
+      }
+      .authCard {
+        width: min(100%, 360px);
+        padding: 30px 26px;
+        border: 1px solid rgba(255, 255, 255, 0.34);
+        border-radius: 24px;
+        background: rgba(32, 35, 31, 0.68);
+        color: white;
+        box-shadow: 0 18px 60px rgba(0, 0, 0, 0.22);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+      }
+      .authCard h2 {
+        text-align: center;
+        margin-bottom: 24px;
+        font-size: 30px;
+        font-weight: 400;
+        letter-spacing: 1px;
+      }
+      .authCard label {
+        display: block;
+        margin: 14px 0 7px;
+        font-size: 15px;
+      }
+      .authCard input {
+        width: 100%;
+        min-height: 46px;
+        padding: 10px 12px;
+        border: 1px solid rgba(255, 255, 255, 0.38);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        font: inherit;
+      }
+      .authCard input::placeholder {
+        color: rgba(255, 255, 255, 0.65);
+      }
+      .authCard input:focus {
+        outline: none;
+        border-color: rgba(255, 255, 255, 0.65);
+        box-shadow: none;
+      }
+      .authActions {
+        display: flex;
+        gap: 8px;
+        margin-top: 22px;
+      }
+      .authActions button {
+        width: 100%;
+        min-height: 44px;
+        padding: 9px 14px;
+        border: 1px solid rgba(255, 255, 255, 0.65);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.92);
+        color: #263027;
+        font: inherit;
+        font-size: 17px;
+        cursor: pointer;
+      }
+      #authSignIn:hover {
+        background-color: rgba(255, 255, 255, 0.8) !important;
+        color: #263027 !important;
+        transform: none;
+      }
+      .authActions button:active {
+        background: rgba(255, 255, 255, 0.82);
+        color: #263027;
+      }
+      #authMessage {
+        min-height: 22px;
+        margin-top: 14px;
+        font-size: 13px;
+        text-align: center;
+        overflow-wrap: anywhere;
+      }
+      @media (max-width: 420px) {
+        .authOpen {
+          top: max(14px, env(safe-area-inset-top));
+          right: 64px;
+          padding: 7px 10px;
+          font-size: 13px;
+          height: 44px;
+        }
+      }
+
+      .calOpen {
+        position: fixed;
+        top: calc(env(safe-area-inset-top, 0px) + 12px);
+        right: 12px;
+        z-index: 60;
+        width: 44px;
+        height: 44px;
+        padding: 0;
+        border-radius: 50%;
+        font-size: 22px;
+        line-height: 42px;
+        cursor: pointer;
+      }
+      /* 전체 화면 캘린더 페이지 */
+      .calModal {
+        position: fixed;
+        inset: 0;
+        z-index: 50;
+        overflow-y: auto;
+        background: rgba(0, 0, 0, 0.45);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        color: #fff;
+        text-align: center;
+        text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      }
+      .calModal[hidden] {
+        display: none;
+      }
+      .calCard {
+        box-sizing: border-box;
+        width: 100%;
+        max-width: 640px;
+        min-height: 100%;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: calc(env(safe-area-inset-top, 0px) + 70px) 16px
+          calc(env(safe-area-inset-bottom, 0px) + 70px);
+      }
+      .calHead {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 18px;
+        font-size: 28px;
+      }
+      .calHead strong {
+        font-weight: 400;
+        letter-spacing: 2px;
+      }
+      .calHead button {
+        width: 48px;
+        height: 48px;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        box-shadow: none;
+        font-size: 32px;
+        line-height: 48px;
+        cursor: pointer;
+      }
+      @media (max-width: 600px) {
+        .calOpen {
+          top: max(14px, env(safe-area-inset-top, 0px));
+          right: 8px;
+          width: 44px;
+          height: 44px;
+          min-height: 44px;
+          font-size: 22px;
+          line-height: 1;
+        }
+        .calCard {
+          padding-top: calc(env(safe-area-inset-top, 0px) + 46px);
+          padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 46px);
+        }
+      }
+      .calHead button:hover,
+      .calHead button:active {
+        background: transparent;
+        transform: none;
+      }
+      .calHead button:active {
+        opacity: 0.5;
+      }
+      .calGrid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        row-gap: 6px;
+      }
+      .calDow {
+        font-size: 14px;
+        padding-bottom: 8px;
+        color: rgba(255, 255, 255, 0.7);
+      }
+      .calDay {
+        min-height: 76px;
+        padding: 8px 1px;
+        font-size: 17px;
+      }
+      .calDay b {
+        display: block;
+        font-weight: 400;
+        color: rgba(255, 255, 255, 0.8);
+      }
+      .calDay.today b {
+        color: #ff9f43;
+        text-decoration: underline;
+        text-underline-offset: 6px;
+        text-decoration-thickness: 2px;
+      }
+      .calDay span {
+        display: block;
+        margin-top: 6px;
+        font-size: 12px;
+        line-height: 1.25;
+      }
+      .calSummary {
+        margin-top: 22px;
+        font-size: 17px;
+        color: rgba(255, 255, 255, 0.8);
+      }
+
+      .resetTotal {
+        margin-top: 12px;
+        padding: 6px 14px;
+        font-size: 14px;
+        opacity: 0.7;
+      }
+
+      .resetTotal:hover {
+        opacity: 1;
+      }
+
+      button {
+        font-family: "OngleipParkDahyeon", Arial, sans-serif;
+        border: 1px solid rgba(255, 255, 255, 0.55);
+        background: rgba(0 0 0 / 10%);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        color: white;
+        border-radius: 999px;
+        padding: 10px 17px;
+        font-size: 18px;
+        cursor: pointer;
+        white-space: nowrap;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+        transition:
+          background 0.15s,
+          transform 0.1s;
+      }
+
+      button:hover {
+        background: rgba(255, 255, 255, 0.3);
+      }
+
+      button:active {
+        background: rgba(255, 255, 255, 0.36);
+        transform: scale(0.97);
+      }
+
+      /* =========================
+                 알림
+         ========================= */
+
+      #toast {
+        position: fixed;
+        left: 50%;
+        bottom: max(70px, calc(56px + env(safe-area-inset-bottom)));
+        transform: translateX(-50%) translateY(18px);
+        opacity: 0;
+        transition:
+          opacity 0.35s,
+          transform 0.35s;
+        padding: 10px 16px;
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.55);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        font-size: 13px;
+        pointer-events: none;
+        white-space: nowrap;
+        z-index: 40;
+        max-width: calc(100vw - 48px);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        text-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+      }
+
+      #toast.show {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+
+      /* =========================
+             좁은 세로 화면
+         ========================= */
+
+      @media (orientation: portrait) and (max-width: 1100px) {
+        .wrap {
+          padding: 24px max(16px, env(safe-area-inset-right)) 24px
+            max(16px, env(safe-area-inset-left));
+        }
+
+        .ring {
+          width: min(66vw, 390px);
+          height: min(66vw, 390px);
+        }
+
+        .controls {
+          gap: 12px;
+        }
+
+        .controls button {
+          flex: 0 0 auto;
+          min-width: 0;
+          padding: 10px 17px;
+          font-size: 16px;
+        }
+      }
+
+      @media (orientation: portrait) and (max-width: 395px) {
+        .timerBox {
+          transform: translateY(-10px);
+        }
+
+        .ring {
+          width: min(72vw, 280px);
+          height: min(72vw, 280px);
+        }
+
+        .time {
+          font-size: 64px;
+        }
+
+        .totalFocus {
+          font-size: 18px;
+        }
+
+        .controls {
+          gap: 4px;
+        }
+
+        .controls button {
+          font-size: 11px;
+          padding: 10px 11px;
+        }
+
+        .settingsRows {
+          gap: 20px;
+        }
+
+        .settingsRow {
+          min-width: 76px;
+        }
+
+        .settingValue input {
+          width: 54px;
+          font-size: 29px;
+        }
+
+        .settingLabel {
+          font-size: 14px;
+        }
+
+        .settingsRow .settingsApply {
+          margin-top: 11px;
+        }
+
+        .settingsApply {
+          min-width: 60px;
+          min-height: 36px;
+          padding: 6px 12px;
+          font-size: 14px;
+        }
+      }
+
+      @media (orientation: portrait) and (min-width: 601px) and (max-width: 1100px) {
+        .ring {
+          width: min(68vw, 520px);
+          height: min(68vw, 520px);
+        }
+
+        .time {
+          font-size: clamp(70px, 11vw, 120px);
+        }
+
+        .totalFocus {
+          font-size: 32px;
+        }
+
+        .controls button {
+          font-size: 24px;
+        }
+      }
+
+      /* =========================
+           좁은 화면 대응
+       ========================= */
+
+      @media (max-width: 900px) {
+        .controls {
+          gap: 8px;
+        }
+
+        .controls button {
+          flex: 0 0 auto;
+          min-width: 0;
+          padding: 10px 17px;
+          font-size: 18px;
+        }
+      }
+
+      @media (max-width: 750px) {
+        .controls {
+          gap: 6px;
+        }
+
+        .controls button {
+          padding: 8px 10px;
+          font-size: 13px;
+        }
+      }
+
+      @media (max-width: 620px) {
+        .controls {
+          gap: 5px;
+        }
+
+        .controls button {
+          padding: 8px 9px;
+          font-size: 15px;
+        }
+      }
+
+      /* =========================
+             높이가 낮은 화면
+         ========================= */
+
+      @media (orientation: landscape) and (max-height: 500px) {
+        .ring {
+          width: min(58vh, 280px);
+          height: min(58vh, 280px);
+        }
+
+        .controls {
+          margin-top: 12px;
+        }
+
+        .controls button {
+          flex: 0 0 auto;
+          min-width: 0;
+          padding: 7px 11px;
+          font-size: 16px;
+        }
+
+        .time {
+          font-size: clamp(40px, min(9vw, 12vh), 82px);
+          letter-spacing: 1px;
+        }
+
+        .totalFocus {
+          margin-top: 7px;
+          font-size: 18px;
+        }
+
+        .settingsRows {
+          gap: 24px;
+        }
+
+        .settingLabel {
+          font-size: 15px;
+          margin-bottom: 5px;
+        }
+
+        .settingValue {
+          min-height: 40px;
+        }
+
+        .settingValue input {
+          height: 40px;
+          font-size: 28px;
+        }
+
+        .settingValue span {
+          font-size: 15px;
+        }
+
+        .settingsRow .settingsApply {
+          margin-top: 10px;
+        }
+
+        .settingsApply {
+          min-width: 64px;
+          min-height: 38px;
+          padding: 6px 13px;
+          font-size: 15px;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+          scroll-behavior: auto !important;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <img id="bg" alt="" />
+    <div id="shade"></div>
+    <div id="authModal" class="authModal">
+      <section
+        class="authCard"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="authTitle"
+      >
+        <h2 id="authTitle">로그인</h2>
+        <form id="authForm">
+          <label for="authEmail">이메일</label>
+          <input
+            id="authEmail"
+            type="email"
+            autocomplete="email"
+            placeholder="이메일"
+            required
+          />
+          <label for="authPassword">비밀번호</label>
+          <input
+            id="authPassword"
+            type="password"
+            autocomplete="current-password"
+            placeholder="비밀번호"
+            required
+          />
+          <div class="authActions">
+            <button type="submit" id="authSignIn">로그인</button>
+          </div>
+        </form>
+        <div id="authMessage" role="status" aria-live="polite"></div>
+      </section>
+    </div>
+    <div id="appShell" hidden>
+      <button id="authOpen" class="authOpen" type="button">로그아웃</button>
+      <button
+        id="openCalendar"
+        class="calOpen"
+        type="button"
+        aria-label="캘린더"
+      >
+        ☰
+      </button>
+      <div id="calendarModal" class="calModal" hidden>
+        <div class="calCard">
+          <div class="calHead">
+            <button id="calPrev" type="button" aria-label="이전 달">‹</button>
+            <strong id="calTitle"></strong>
+            <button id="calNext" type="button" aria-label="다음 달">›</button>
+          </div>
+          <div id="calGrid" class="calGrid"></div>
+          <div id="calSummary" class="calSummary"></div>
+        </div>
+      </div>
+      <div id="toast"></div>
+
+      <div class="wrap">
+        <div class="timerBox">
+          <div class="ring" id="ring">
+            <svg viewBox="0 0 200 200" aria-hidden="true">
+              <circle class="track" cx="100" cy="100" r="92"></circle>
+
+              <circle
+                class="progress"
+                id="progress"
+                cx="100"
+                cy="100"
+                r="92"
+              ></circle>
+            </svg>
+
+            <div class="timerContent" id="timerContent">
+              <div
+                class="time"
+                id="time"
+                role="button"
+                tabindex="0"
+                aria-label="타이머 시간 설정"
+              >
+                30:00
+              </div>
+
+              <div
+                class="totalFocus"
+                id="totalFocus"
+                aria-label="누적 집중 시간"
+              >
+                --
+              </div>
+
+              <div
+                class="settingsContent"
+                id="settingsContent"
+                aria-hidden="true"
+              >
+                <div class="settingsRows">
+                  <!-- 집중 -->
+                  <div class="settingsRow">
+                    <span class="settingLabel">집중</span>
+
+                    <div class="settingValue">
+                      <input
+                        id="focusInput"
+                        type="number"
+                        min="1"
+                        max="180"
+                        step="1"
+                        value="30"
+                        aria-label="집중 시간(분)"
+                      />
+                      <span>분</span>
+                    </div>
+
+                    <button
+                      id="cancelSettings"
+                      class="settingsApply"
+                      type="button"
+                    >
+                      취소
+                    </button>
+                  </div>
+
+                  <!-- 휴식 -->
+                  <div class="settingsRow">
+                    <span class="settingLabel">휴식</span>
+
+                    <div class="settingValue">
+                      <input
+                        id="breakInput"
+                        type="number"
+                        min="1"
+                        max="60"
+                        step="1"
+                        value="5"
+                        aria-label="휴식 시간(분)"
+                      />
+                      <span>분</span>
+                    </div>
+
+                    <button
+                      id="saveSettings"
+                      class="settingsApply"
+                      type="button"
+                    >
+                      저장
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="controls">
+            <button id="start" type="button">▶ 시작</button>
+            <button id="pause" type="button">Ⅱ 정지</button>
+            <button id="skip" type="button">다음 →</button>
+            <button id="finish" type="button">■ 종료</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+      const SUPABASE_URL = "https://shgqbosnyeqcwqtvsqaa.supabase.co";
+      const SUPABASE_PUBLISHABLE_KEY =
+        "sb_publishable_WidgfxlToAmA-e1Eoljjxg_8Xhvqf9a";
+      const supabaseClient = window.supabase.createClient(
+        SUPABASE_URL,
+        SUPABASE_PUBLISHABLE_KEY,
+        {
+          // 로그인은 현재 탭에만 유지하고, 탭을 닫으면 세션 저장소가 사라지게 한다.
+          auth: { storage: window.sessionStorage },
+        },
+      );
+      let cloudHistory = {};
+      let currentAuthUser = null;
+      const FOCUS_BACKGROUNDS = [
+        "backgrounds/bg1.jpg",
+        "backgrounds/bg2.jpg",
+        "backgrounds/bg3.jpg",
+        "backgrounds/bg4.jpg",
+        "backgrounds/bg5.jpg",
+        "backgrounds/bg6.jpg",
+        "backgrounds/bg7.jpg",
+        "backgrounds/bg8.jpg",
+        "backgrounds/bg9.jpg",
+        "backgrounds/bg10.jpg",
+        "backgrounds/bg11.jpg",
+        "backgrounds/bg12.jpg",
+        "backgrounds/bg13.jpg",
+      ];
+
+      const BREAK_BACKGROUNDS = ["backgrounds/break.jpg"];
+
+      let currentFocusBg = -1;
+      let currentBreakBg = -1;
+      let backgroundChangeTimer = null;
+
+      const bg = document.getElementById("bg");
+      const timeEl = document.getElementById("time");
+      const totalFocusEl = document.getElementById("totalFocus");
+      const progress = document.getElementById("progress");
+      const toast = document.getElementById("toast");
+      const timerContent = document.getElementById("timerContent");
+      const settingsContent = document.getElementById("settingsContent");
+      const focusInput = document.getElementById("focusInput");
+      const breakInput = document.getElementById("breakInput");
+      const saveSettingsBtn = document.getElementById("saveSettings");
+      const cancelSettingsBtn = document.getElementById("cancelSettings");
+
+      const R = 92;
+      const C = 2 * Math.PI * R;
+
+      progress.style.strokeDasharray = `0 ${C}`;
+      progress.style.strokeDashoffset = 0;
+
+      const SETTINGS_KEY = "cozyPomodoroSettings";
+      const FOCUS_TOTAL_KEY = "cozyPomodoroFocusTotal";
+
+      function getLocalDateKey(date = new Date()) {
+        return [
+          date.getFullYear(),
+          String(date.getMonth() + 1).padStart(2, "0"),
+          String(date.getDate()).padStart(2, "0"),
+        ].join("-");
+      }
+
+      function nextDateKey(key) {
+        const [y, m, d] = String(key).split("-").map(Number);
+
+        return getLocalDateKey(new Date(y, m - 1, d + 1));
+      }
+
+      /*
+        저장 형식: { date, seconds, carry }
+
+        date    : 화면 누적이 시작된 날짜
+        seconds : 화면에 보이는 누적 집중 시간
+        carry   : seconds 중 자정 이후(다음 날)에 쌓인 몫
+
+        자정을 넘겨도 `종료`를 누르기 전까지는 seconds가 계속 이어진다.
+        `종료`를 누르면 carry만 남기고 새 날짜로 넘어간다.
+      */
+      function loadFocusState() {
+        const today = getLocalDateKey();
+
+        try {
+          const saved = JSON.parse(localStorage.getItem(FOCUS_TOTAL_KEY));
+
+          if (
+            saved &&
+            typeof saved.date === "string" &&
+            Number.isFinite(Number(saved.seconds))
+          ) {
+            const seconds = Math.max(0, Math.floor(Number(saved.seconds)));
+            const carry = Number.isFinite(Number(saved.carry))
+              ? Math.min(seconds, Math.max(0, Math.floor(Number(saved.carry))))
+              : 0;
+
+            if (saved.date === today) {
+              return { date: today, seconds, carry };
+            }
+
+            // 종료를 안 누르고 닫았다가 날짜가 바뀐 뒤 연 경우:
+            // 바로 다음 날이면 자정 이후 몫만 이어서, 아니면 0부터.
+            return {
+              date: today,
+              seconds: nextDateKey(saved.date) === today ? carry : 0,
+              carry: 0,
+            };
+          }
+        } catch (e) {
+          console.warn("오늘 누적 집중 시간 불러오기 실패:", e);
+        }
+
+        return { date: today, seconds: 0, carry: 0 };
+      }
+
+      /*
+        elapsed 중에서 자정 이후에 지난 시간.
+        누적이 시작된 날짜와 지금 날짜가 같으면 0.
+      */
+      function postMidnightPart(elapsed) {
+        if (elapsed <= 0 || focusTotalDate === getLocalDateKey()) {
+          return 0;
+        }
+
+        const midnight = new Date();
+        midnight.setHours(0, 0, 0, 0);
+
+        const sinceMidnight = Math.max(
+          0,
+          Math.floor((Date.now() - midnight.getTime()) / 1000),
+        );
+
+        return Math.min(elapsed, sinceMidnight);
+      }
+
+      function saveFocusTotal(includeCurrent = false) {
+        const current = includeCurrent ? getCurrentFocusElapsed() : 0;
+        const seconds = Math.max(0, totalFocusSeconds + current);
+        const carry = Math.min(
+          seconds,
+          carrySeconds + postMidnightPart(current),
+        );
+
+        try {
+          localStorage.setItem(
+            FOCUS_TOTAL_KEY,
+            JSON.stringify({
+              date: focusTotalDate,
+              seconds,
+              carry,
+            }),
+          );
+        } catch (e) {
+          console.warn("오늘 누적 집중 시간 저장 실패:", e);
+        }
+
+        // 캘린더용 날짜별 기록 (자정 이후 몫(carry)은 다음 날 몫이라 제외)
+        try {
+          const history = loadHistory();
+          history[focusTotalDate] = Math.max(0, seconds - carry);
+          localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+        } catch (e) {
+          console.warn("날짜별 기록 저장 실패:", e);
+        }
+      }
+
+      const HISTORY_KEY = "cozyPomodoroHistory";
+
+      function loadHistory() {
+        try {
+          const h = JSON.parse(localStorage.getItem(HISTORY_KEY));
+          return h && typeof h === "object" ? h : {};
+        } catch (e) {
+          return {};
+        }
+      }
+
+      function loadSettings() {
+        try {
+          const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY));
+
+          if (
+            saved &&
+            Number.isFinite(Number(saved.focusMinutes)) &&
+            Number(saved.focusMinutes) >= 1 &&
+            Number(saved.focusMinutes) <= 180 &&
+            Number.isFinite(Number(saved.breakMinutes)) &&
+            Number(saved.breakMinutes) >= 1 &&
+            Number(saved.breakMinutes) <= 60
+          ) {
+            return {
+              focusMinutes: Number(saved.focusMinutes),
+              breakMinutes: Number(saved.breakMinutes),
+            };
+          }
+        } catch (e) {
+          console.warn("설정 불러오기 실패:", e);
+        }
+
+        return {
+          focusMinutes: 30,
+          breakMinutes: 5,
+        };
+      }
+
+      let settings = loadSettings();
+
+      focusInput.value = settings.focusMinutes;
+      breakInput.value = settings.breakMinutes;
+
+      let settingsOpen = false;
+      let settingsWasRunning = false;
+
+      let phase = "focus";
+      let duration = settings.focusMinutes * 60;
+      let remaining = duration;
+
+      let running = false;
+      let endTime = null;
+
+      let timerId = null;
+      let titleRafId = null;
+      let titleTimeoutId = null;
+      let hiddenWorker = null;
+      let hiddenWorkerUrl = null;
+
+      /*
+      누적 집중시간 계산의 핵심
+
+      totalFocusSeconds:
+        이미 확정해서 저장한 집중 시간
+
+      focusSegmentStartRemaining:
+        현재 집중 구간이 시작됐을 때의 remaining
+
+      현재 집중 구간에서 실제로 경과한 시간:
+        focusSegmentStartRemaining - remaining
+
+      이렇게 하면 일시정지 / 재개 / 다음 단계에서
+      같은 시간을 두 번 더하지 않는다.
+    */
+      const initialFocusState = loadFocusState();
+
+      let totalFocusSeconds = initialFocusState.seconds;
+      let focusTotalDate = initialFocusState.date;
+      let carrySeconds = initialFocusState.carry;
+      let focusSegmentStartRemaining = null;
+
+      /*
+        날짜 경계 적용 (`종료`를 누를 때만 실행)
+
+        화면 누적에서 어제 몫을 빼고, 자정 이후에 쌓은 몫(carry)만 남긴다.
+        자정을 안 넘겼으면 아무것도 하지 않는다.
+      */
+      function applyDayBoundary() {
+        const today = getLocalDateKey();
+
+        if (today === focusTotalDate) {
+          return false;
+        }
+
+        totalFocusSeconds =
+          nextDateKey(focusTotalDate) === today ? carrySeconds : 0;
+        carrySeconds = 0;
+        focusTotalDate = today;
+        focusSegmentStartRemaining = null;
+
+        saveFocusTotal();
+        return true;
+      }
+
+      /*
+        종료를 안 눌렀더라도, 날짜가 바뀌었고 자정 이후에 쌓인 집중이
+        하나도 없으면(carry가 0) 새 날 00:00으로 자동으로 넘긴다.
+        예) 23:00에 집중을 끝내고 탭을 켜 둔 채 다음 날이 된 경우.
+
+        자정 이후 몫이 있으면 건드리지 않는다. (종료 때 정리)
+        타이머가 돌아가는 중일 때도 건드리지 않는다.
+      */
+      function rolloverIfIdle() {
+        if (running) return;
+        if (focusTotalDate === getLocalDateKey()) return;
+        if (carrySeconds > 0) return;
+
+        applyDayBoundary();
+        render();
+      }
+
+      function getCurrentFocusElapsed() {
+        if (
+          !running ||
+          phase !== "focus" ||
+          focusSegmentStartRemaining === null
+        ) {
+          return 0;
+        }
+
+        // 타이머 표시(ceil)와 같은 기준으로 계산 → 항상 정수
+        return Math.max(
+          0,
+          Math.ceil(focusSegmentStartRemaining) - Math.ceil(remaining),
+        );
+      }
+
+      function commitCurrentFocusTime() {
+        if (phase !== "focus" || focusSegmentStartRemaining === null) {
+          return;
+        }
+
+        const elapsed = Math.max(
+          0,
+          Math.ceil(focusSegmentStartRemaining) - Math.ceil(remaining),
+        );
+
+        if (elapsed > 0) {
+          carrySeconds += postMidnightPart(elapsed);
+          totalFocusSeconds += elapsed;
+          saveNewFocusTimeToCloud(elapsed);
+        }
+
+        focusSegmentStartRemaining = null;
+        saveFocusTotal();
+      }
+
+      function changeBackground(list, type) {
+        if (list.length === 0) return;
+
+        let next;
+
+        if (type === "focus") {
+          do {
+            next = Math.floor(Math.random() * list.length);
+          } while (list.length > 1 && next === currentFocusBg);
+
+          currentFocusBg = next;
+        } else {
+          do {
+            next = Math.floor(Math.random() * list.length);
+          } while (list.length > 1 && next === currentBreakBg);
+
+          currentBreakBg = next;
+        }
+
+        bg.style.opacity = "0";
+
+        clearTimeout(backgroundChangeTimer);
+
+        backgroundChangeTimer = setTimeout(() => {
+          bg.onload = () => {
+            bg.style.opacity = "1";
+          };
+
+          bg.onerror = () => {
+            bg.style.opacity = "1";
+            console.warn("배경 이미지 로딩 실패:", list[next]);
+          };
+
+          bg.src = list[next];
+        }, 180);
+      }
+
+      function setBackgroundForPhase() {
+        if (phase === "focus") {
+          changeBackground(FOCUS_BACKGROUNDS, "focus");
+        } else {
+          changeBackground(BREAK_BACKGROUNDS, "break");
+        }
+      }
+
+      setBackgroundForPhase();
+
+      function format(sec) {
+        sec = Math.max(0, Math.ceil(sec));
+
+        return (
+          String(Math.floor(sec / 60)).padStart(2, "0") +
+          ":" +
+          String(sec % 60).padStart(2, "0")
+        );
+      }
+
+      function formatFocusTotal(sec) {
+        /*
+        메인 타이머는 ceil,
+        누적 시간은 floor.
+
+        그래서 시작 직후:
+          타이머 01:00
+          누적 00:00
+
+        정확히 1초가 지나면:
+          타이머 00:59
+          누적 00:01
+
+        시각적으로 초가 같이 넘어간다.
+      */
+        sec = Math.max(0, Math.floor(sec));
+
+        // 아직 집중 기록이 없으면 대시로 표시
+        if (sec === 0) {
+          return "--";
+        }
+
+        const hours = Math.floor(sec / 3600);
+        const minutes = Math.floor((sec % 3600) / 60);
+        const seconds = sec % 60;
+
+        // 타이머(분:초)와 헷갈리지 않도록 단위를 영어로 표시
+        if (hours > 0) {
+          return `${hours}h ${minutes}m ${seconds}s`;
+        }
+
+        if (minutes > 0) {
+          return `${minutes}m ${seconds}s`;
+        }
+
+        return `${seconds}s`;
+      }
+
+      function formatHMS(sec) {
+        sec = Math.max(0, Math.floor(sec));
+
+        return [Math.floor(sec / 3600), Math.floor((sec % 3600) / 60), sec % 60]
+          .map((n) => String(n).padStart(2, "0"))
+          .join(":");
+      }
+
+      function render() {
+        timeEl.textContent = format(remaining);
+
+        const displayedFocusSeconds =
+          totalFocusSeconds + getCurrentFocusElapsed();
+
+        totalFocusEl.textContent = formatFocusTotal(displayedFocusSeconds);
+
+        const ratio = Math.max(
+          0,
+          Math.min(1, (duration - remaining) / duration),
+        );
+
+        progress.style.strokeDasharray = `${C * ratio} ${C}`;
+
+        progress.style.strokeDashoffset = 0;
+
+        document.title =
+          `${format(remaining)} · ` + `${phase === "focus" ? "집중" : "휴식"}`;
+      }
+
+      function showToast(msg) {
+        toast.textContent = msg;
+        toast.classList.add("show");
+
+        clearTimeout(showToast.t);
+
+        showToast.t = setTimeout(() => {
+          toast.classList.remove("show");
+        }, 2200);
+      }
+
+      const sounds = {
+        focusStart: new Audio("sounds/focus-start.wav"),
+        focusEnd: new Audio("sounds/focus-end.wav"),
+        breakStart: new Audio("sounds/break-start.wav"),
+        breakEnd: new Audio("sounds/break-end.wav"),
+        pause: new Audio("sounds/pause.wav"),
+      };
+
+      Object.values(sounds).forEach((audio) => {
+        audio.preload = "auto";
+        audio.volume = 1;
+      });
+
+      function beep(kind) {
+        const audio = sounds[kind] || sounds.focusStart;
+
+        try {
+          audio.pause();
+          audio.currentTime = 0;
+
+          const playPromise = audio.play();
+
+          if (playPromise instanceof Promise) {
+            playPromise.catch((error) => {
+              console.warn("알림음 재생 실패:", error);
+            });
+          }
+        } catch (error) {
+          console.warn("알림음 재생 실패:", error);
+        }
+      }
+
+      /*
+        마지막 10초 카운트다운 틱 소리
+        - 파일 없이 WebAudio로 짧은 "똑" 소리를 만든다.
+        - 집중/휴식 모두 적용된다.
+      */
+      const COUNTDOWN_SECONDS = 10;
+      // 카운트다운 소리 크기 (1 = 기본, 숫자를 키울수록 커짐)
+      const TICK_VOLUME = 3;
+      let tickCtx = null;
+      let tickMaster = null;
+      let lastTickSecond = null;
+      let keepAliveOsc = null;
+
+      /*
+        오디오 장치(특히 블루투스/노트북 스피커)는 한참 소리가 없으면
+        절전 상태로 들어가서, 맨 처음 소리의 앞부분이 작게 나오거나
+        통째로 사라진다. 타이머가 도는 동안 사람 귀에는 안 들리는
+        아주 작은 저음을 계속 흘려서 장치를 깨어 있게 한다.
+      */
+      function startKeepAlive() {
+        if (!tickCtx || keepAliveOsc) return;
+        try {
+          const osc = tickCtx.createOscillator();
+          const g = tickCtx.createGain();
+          osc.type = "sine";
+          osc.frequency.value = 30;
+          g.gain.value = 0.003;
+          osc.connect(g);
+          g.connect(tickCtx.destination);
+          osc.start();
+          keepAliveOsc = osc;
+        } catch (error) {
+          console.warn("오디오 유지 실패:", error);
+        }
+      }
+
+      function stopKeepAlive() {
+        if (!keepAliveOsc) return;
+        try {
+          keepAliveOsc.stop();
+          keepAliveOsc.disconnect();
+        } catch (error) {
+          /* 이미 멈춘 경우 무시 */
+        }
+        keepAliveOsc = null;
+      }
+
+      function unlockTickAudio() {
+        try {
+          if (!tickCtx) {
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            if (!Ctx) return;
+            tickCtx = new Ctx();
+
+            // 마스터 볼륨 → 컴프레서(찢어짐 방지) → 스피커
+            const compressor = tickCtx.createDynamicsCompressor();
+            compressor.threshold.value = -10;
+            compressor.knee.value = 0;
+            compressor.ratio.value = 20;
+            compressor.attack.value = 0.001;
+            compressor.release.value = 0.06;
+
+            tickMaster = tickCtx.createGain();
+            tickMaster.gain.value = TICK_VOLUME;
+
+            tickMaster.connect(compressor);
+            compressor.connect(tickCtx.destination);
+          }
+          if (tickCtx.state !== "running") {
+            const p = tickCtx.resume();
+            if (p && p.catch) p.catch(() => {});
+          }
+          startKeepAlive();
+        } catch (error) {
+          console.warn("틱 소리 준비 실패:", error);
+        }
+      }
+
+      function playTick() {
+        if (!tickCtx || tickCtx.state !== "running") {
+          // 브라우저가 컨텍스트를 멈춰 둔 경우 다시 깨워 둔다.
+          unlockTickAudio();
+          return;
+        }
+
+        const t = tickCtx.currentTime + 0.03;
+
+        // 낮고 둥근 "동" 소리: 음높이 변화 없이 부드럽게 울렸다 사라짐
+        const gain = tickCtx.createGain();
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(1, t + 0.012);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+        gain.connect(tickMaster);
+
+        [
+          [587, 1], // 기본음 (레)
+          [1174, 0.25], // 한 옥타브 위를 살짝 섞어 따뜻하게
+        ].forEach(([freq, level]) => {
+          const osc = tickCtx.createOscillator();
+          const g = tickCtx.createGain();
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(freq, t);
+          g.gain.value = level;
+          osc.connect(g);
+          g.connect(gain);
+          osc.start(t);
+          osc.stop(t + 0.47);
+        });
+      }
+
+      function countdownTick() {
+        if (!running || endTime === null) return;
+
+        const secondsLeft = Math.ceil((endTime - Date.now()) / 1000);
+
+        if (secondsLeft < 1 || secondsLeft > COUNTDOWN_SECONDS) return;
+        if (secondsLeft === lastTickSecond) return;
+
+        lastTickSecond = secondsLeft;
+        playTick();
+      }
+
+      function stopHiddenTicker() {
+        if (hiddenWorker) {
+          hiddenWorker.terminate();
+          hiddenWorker = null;
+        }
+        if (hiddenWorkerUrl) {
+          URL.revokeObjectURL(hiddenWorkerUrl);
+          hiddenWorkerUrl = null;
+        }
+      }
+
+      function stopTimers() {
+        stopHiddenTicker();
+        stopKeepAlive();
+        cancelAnimationFrame(timerId);
+        cancelAnimationFrame(titleRafId);
+        clearTimeout(titleTimeoutId);
+
+        timerId = null;
+        titleRafId = null;
+        titleTimeoutId = null;
+      }
+
+      function pauseForSettings() {
+        if (!running) return;
+
+        remaining = Math.max(0, (endTime - Date.now()) / 1000);
+
+        if (phase === "focus") {
+          commitCurrentFocusTime();
+        }
+
+        running = false;
+
+        stopTimers();
+
+        endTime = null;
+
+        render();
+      }
+
+      function openSettings() {
+        if (settingsOpen) return;
+
+        settingsWasRunning = running;
+
+        pauseForSettings();
+
+        settingsOpen = true;
+
+        focusInput.value = settings.focusMinutes;
+
+        breakInput.value = settings.breakMinutes;
+
+        timerContent.classList.add("is-settings");
+
+        settingsContent.classList.add("open");
+
+        settingsContent.setAttribute("aria-hidden", "false");
+      }
+
+      function closeSettings() {
+        settingsOpen = false;
+
+        timerContent.classList.remove("is-settings");
+
+        settingsContent.classList.remove("open");
+
+        settingsContent.setAttribute("aria-hidden", "true");
+      }
+
+      function validateSettings() {
+        const focusMinutes = Number(focusInput.value);
+
+        const breakMinutes = Number(breakInput.value);
+
+        if (
+          !Number.isInteger(focusMinutes) ||
+          focusMinutes < 1 ||
+          focusMinutes > 180
+        ) {
+          showToast("집중 시간은 1~180분으로 입력해주세요.");
+          return false;
+        }
+
+        if (
+          !Number.isInteger(breakMinutes) ||
+          breakMinutes < 1 ||
+          breakMinutes > 60
+        ) {
+          showToast("휴식 시간은 1~60분으로 입력해주세요.");
+          return false;
+        }
+
+        return true;
+      }
+
+      function saveSettings() {
+        if (!validateSettings()) {
+          return false;
+        }
+
+        const focusMinutes = Number(focusInput.value);
+
+        const breakMinutes = Number(breakInput.value);
+
+        settings = {
+          focusMinutes,
+          breakMinutes,
+        };
+
+        try {
+          localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+        } catch (e) {
+          console.warn("설정 저장 실패:", e);
+        }
+
+        const wasRunning = settingsWasRunning;
+
+        const currentPhase = phase;
+
+        /*
+        설정 저장 시 현재 집중 구간을
+        먼저 한 번만 확정한다.
+      */
+        if (phase === "focus" && focusSegmentStartRemaining !== null) {
+          commitCurrentFocusTime();
+        }
+
+        running = false;
+        stopTimers();
+        endTime = null;
+
+        settingsWasRunning = false;
+
+        phase = currentPhase;
+
+        // 설정 변경 전까지 이미 지난 시간
+        const elapsed = Math.max(0, duration - remaining);
+
+        duration =
+          phase === "focus"
+            ? settings.focusMinutes * 60
+            : settings.breakMinutes * 60;
+
+        // 지난 시간은 유지하고, 새 설정 기준으로 남은 시간 계산 (최소 1초)
+        remaining = Math.max(1, duration - elapsed);
+
+        focusSegmentStartRemaining = null;
+
+        setBackgroundForPhase();
+
+        render();
+
+        closeSettings();
+
+        showToast(
+          `설정 저장 완료 · 집중 ${focusMinutes}분 / 휴식 ${breakMinutes}분`,
+        );
+
+        if (wasRunning) {
+          start({ silent: true });
+        }
+
+        return true;
+      }
+
+      function cancelSettings() {
+        focusInput.value = settings.focusMinutes;
+
+        breakInput.value = settings.breakMinutes;
+
+        const shouldResume = settingsWasRunning;
+
+        settingsWasRunning = false;
+
+        closeSettings();
+
+        render();
+
+        if (shouldResume) {
+          start();
+        }
+
+        showToast("설정 변경 취소");
+      }
+
+      timeEl.addEventListener("click", (event) => {
+        event.stopPropagation();
+
+        if (!settingsOpen) {
+          openSettings();
+        }
+      });
+
+      timeEl.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+
+          if (!settingsOpen) {
+            openSettings();
+          }
+        }
+      });
+
+      saveSettingsBtn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        saveSettings();
+      });
+
+      cancelSettingsBtn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        cancelSettings();
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && settingsOpen) {
+          cancelSettings();
+        }
+      });
+
+      [focusInput, breakInput].forEach((input) => {
+        input.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            saveSettings();
+          }
+        });
+      });
+
+      settingsContent.addEventListener("click", (event) => {
+        event.stopPropagation();
+      });
+
+      function start({ silent = false } = {}) {
+        if (running) return;
+        if (settingsOpen) return;
+
+        running = true;
+        clearIdleLogout();
+
+        /*
+        현재 focus 구간의 시작점을
+        remaining 기준으로 기록한다.
+      */
+        if (phase === "focus" && focusSegmentStartRemaining === null) {
+          focusSegmentStartRemaining = remaining;
+        }
+
+        endTime = Date.now() + remaining * 1000;
+
+        unlockTickAudio();
+        lastTickSecond = Math.ceil(remaining);
+
+        beep(phase === "focus" ? "focusStart" : "breakStart");
+
+        if (!silent) {
+          showToast(phase === "focus" ? "집중 시작 🍅" : "휴식 시작 ☕");
+        }
+
+        render();
+
+        timerId = requestAnimationFrame(tick);
+
+        startTitleTimer();
+      }
+
+      function tick() {
+        if (!running) return;
+
+        remaining = Math.max(0, (endTime - Date.now()) / 1000);
+
+        if (remaining <= 0) {
+          remaining = 0;
+
+          render();
+
+          transition();
+
+          return;
+        }
+
+        countdownTick();
+
+        render();
+
+        if (!running) return;
+
+        timerId = requestAnimationFrame(tick);
+      }
+
+      function pause() {
+        if (!running) return;
+
+        remaining = Math.max(0, (endTime - Date.now()) / 1000);
+
+        if (phase === "focus") {
+          commitCurrentFocusTime();
+        }
+
+        running = false;
+
+        stopTimers();
+
+        endTime = null;
+        scheduleIdleLogout();
+
+        beep("pause");
+
+        render();
+
+        showToast("일시정지");
+      }
+
+      function transition() {
+        /*
+        자동 종료 / 다음 단계 버튼 모두
+        여기로 들어온다.
+
+        focus라면 먼저 현재 focus 시간을
+        한 번만 확정한다.
+      */
+        if (running && endTime !== null) {
+          remaining = Math.max(0, (endTime - Date.now()) / 1000);
+        }
+
+        if (phase === "focus") {
+          commitCurrentFocusTime();
+        }
+
+        running = false;
+
+        stopTimers();
+
+        endTime = null;
+        clearIdleLogout();
+
+        if (phase === "focus") {
+          beep("focusEnd");
+
+          phase = "break";
+
+          duration = settings.breakMinutes * 60;
+
+          remaining = duration;
+
+          focusSegmentStartRemaining = null;
+
+          setBackgroundForPhase();
+
+          showToast(`집중 끝! ${settings.breakMinutes}분 휴식 🌿`);
+        } else {
+          beep("breakEnd");
+
+          phase = "focus";
+
+          duration = settings.focusMinutes * 60;
+
+          remaining = duration;
+
+          focusSegmentStartRemaining = null;
+
+          setBackgroundForPhase();
+
+          showToast("휴식 끝! 다시 집중 🍅");
+        }
+
+        render();
+
+        start();
+      }
+
+      function skip() {
+        if (settingsOpen) return;
+        transition();
+      }
+
+      /*
+        종료: 정지 + 집중 처음으로 + 날짜 경계 적용
+      */
+      function finishSession() {
+        if (settingsOpen) return;
+
+        beep("pause");
+
+        if (running && endTime !== null) {
+          remaining = Math.max(0, (endTime - Date.now()) / 1000);
+        }
+
+        if (running && phase === "focus") {
+          commitCurrentFocusTime();
+        }
+
+        running = false;
+        stopTimers();
+        endTime = null;
+        scheduleIdleLogout();
+
+        focusSegmentStartRemaining = null;
+
+        phase = "focus";
+        duration = settings.focusMinutes * 60;
+        remaining = duration;
+
+        setBackgroundForPhase();
+
+        applyDayBoundary();
+        saveFocusTotal();
+        render();
+        showToast("종료");
+      }
+
+      function updateTabTitle() {
+        if (!running || endTime === null) {
+          return;
+        }
+
+        const currentRemaining = Math.max(0, (endTime - Date.now()) / 1000);
+
+        document.title =
+          `${format(currentRemaining)} · ` +
+          `${phase === "focus" ? "집중" : "휴식"}`;
+      }
+
+      /*
+        탭이 숨겨졌을 때(다른 탭을 보고 있을 때)는 브라우저가
+        setTimeout을 1초 단위로 몰아서 실행해서 2초씩 건너뛰기도 한다.
+        Web Worker의 타이머는 이 제한을 받지 않으므로 0.2초마다
+        깨워서 남은 시간을 다시 계산한다. (endTime 기준이라 정확함)
+      */
+      function hiddenTick() {
+        if (!running || endTime === null) {
+          stopHiddenTicker();
+          return;
+        }
+
+        if (endTime - Date.now() <= 0) {
+          remaining = 0;
+          render();
+          transition();
+          return;
+        }
+
+        countdownTick();
+        updateTabTitle();
+      }
+
+      function startHiddenTicker() {
+        try {
+          const blob = new Blob(
+            ["setInterval(function(){postMessage(0)},200)"],
+            { type: "text/javascript" },
+          );
+          hiddenWorkerUrl = URL.createObjectURL(blob);
+          hiddenWorker = new Worker(hiddenWorkerUrl);
+          hiddenWorker.onmessage = hiddenTick;
+          return;
+        } catch (error) {
+          stopHiddenTicker();
+        }
+
+        // Worker를 못 쓰는 환경용 대체 경로
+        const fallback = () => {
+          titleTimeoutId = null;
+          hiddenTick();
+          if (running && endTime !== null && titleTimeoutId === null) {
+            titleTimeoutId = setTimeout(fallback, 250);
+          }
+        };
+        titleTimeoutId = setTimeout(fallback, 250);
+      }
+
+      function startTitleTimer() {
+        cancelAnimationFrame(titleRafId);
+        clearTimeout(titleTimeoutId);
+        stopHiddenTicker();
+
+        titleRafId = null;
+        titleTimeoutId = null;
+
+        updateTabTitle();
+
+        const titleTick = () => {
+          if (!running || endTime === null) {
+            return;
+          }
+
+          updateTabTitle();
+
+          if (document.visibilityState === "visible" && running) {
+            titleRafId = requestAnimationFrame(titleTick);
+          }
+        };
+
+        if (document.visibilityState === "visible") {
+          titleRafId = requestAnimationFrame(titleTick);
+        } else {
+          startHiddenTicker();
+        }
+      }
+
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden") {
+          if (running && endTime !== null) {
+            remaining = Math.max(0, (endTime - Date.now()) / 1000);
+          }
+          saveFocusTotal(true);
+        } else {
+          rolloverIfIdle();
+        }
+
+        if (!running) return;
+
+        remaining = Math.max(0, (endTime - Date.now()) / 1000);
+
+        if (remaining <= 0) {
+          remaining = 0;
+          render();
+          transition();
+          return;
+        }
+
+        render();
+        startTitleTimer();
+      });
+
+      /*
+      페이지가 잠시 백그라운드로 갔다가
+      돌아오는 경우에도 타이머는 endTime을
+      기준으로 계속 정확하게 계산한다.
+    */
+      window.addEventListener("pageshow", () => {
+        rolloverIfIdle();
+
+        if (!running || endTime === null) {
+          return;
+        }
+
+        remaining = Math.max(0, (endTime - Date.now()) / 1000);
+
+        if (remaining <= 0) {
+          remaining = 0;
+          render();
+          transition();
+          return;
+        }
+
+        render();
+        startTitleTimer();
+      });
+
+      window.addEventListener("pagehide", () => {
+        if (running && endTime !== null) {
+          remaining = Math.max(0, (endTime - Date.now()) / 1000);
+        }
+        saveFocusTotal(true);
+      });
+
+      document.getElementById("start").addEventListener("click", () => {
+        rolloverIfIdle();
+        start();
+      });
+
+      document.getElementById("pause").addEventListener("click", pause);
+
+      document.getElementById("skip").addEventListener("click", skip);
+
+      document
+        .getElementById("finish")
+        .addEventListener("click", finishSession);
+
+      render();
+
+      /* 캘린더: 날짜별 집중시간 보기 */
+      const calModal = document.getElementById("calendarModal");
+      let calYear = 0;
+      let calMonth = 0;
+
+      function fmtShort(sec) {
+        sec = Math.floor(sec);
+        if (sec <= 0) return "";
+        const h = Math.floor(sec / 3600);
+        const m = Math.floor((sec % 3600) / 60);
+        return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      }
+
+      function renderCalendar() {
+        const history = loadHistory();
+        const today = getLocalDateKey();
+        if (focusTotalDate === today) {
+          history[today] = Math.max(
+            0,
+            totalFocusSeconds + getCurrentFocusElapsed() - carrySeconds,
+          );
+        }
+        // Merge cloud values for cross-device visibility without double-counting
+        // sessions already present in this browser's local history.
+        for (const [date, seconds] of Object.entries(cloudHistory)) {
+          history[date] = Math.max(
+            Number(history[date]) || 0,
+            Number(seconds) || 0,
+          );
+        }
+
+        const pad = (n) => String(n).padStart(2, "0");
+        const first = new Date(calYear, calMonth, 1).getDay();
+        const days = new Date(calYear, calMonth + 1, 0).getDate();
+        let html = ["일", "월", "화", "수", "목", "금", "토"]
+          .map((d) => `<div class="calDow">${d}</div>`)
+          .join("");
+        html += "<div></div>".repeat(first);
+
+        let monthTotal = 0;
+        let activeDays = 0;
+        for (let d = 1; d <= days; d++) {
+          const key = `${calYear}-${pad(calMonth + 1)}-${pad(d)}`;
+          const sec = Math.floor(Number(history[key]) || 0);
+          if (sec > 0) {
+            monthTotal += sec;
+            activeDays++;
+          }
+          html += `<div class="calDay${key === today ? " today" : ""}"><b>${d}</b><span>${fmtShort(sec)}</span></div>`;
+        }
+
+        document.getElementById("calTitle").textContent =
+          `${calYear} / ${calMonth + 1}`;
+        document.getElementById("calGrid").innerHTML = html;
+
+        document.getElementById("calSummary").textContent =
+          `이번 달 총 ${Math.floor(monthTotal / 3600)}시간 ${Math.floor((monthTotal % 3600) / 60)}분 · ${activeDays}일 집중`;
+      }
+
+      function moveMonth(delta) {
+        const d = new Date(calYear, calMonth + delta, 1);
+        calYear = d.getFullYear();
+        calMonth = d.getMonth();
+        renderCalendar();
+      }
+
+      const calBtn = document.getElementById("openCalendar");
+
+      function setCalendarOpen(open) {
+        if (open) {
+          const now = new Date();
+          calYear = now.getFullYear();
+          calMonth = now.getMonth();
+          renderCalendar();
+        }
+        calModal.hidden = !open;
+        calBtn.textContent = open ? "✕" : "☰";
+        calBtn.setAttribute("aria-label", open ? "캘린더 닫기" : "캘린더");
+      }
+
+      calBtn.addEventListener("click", () => setCalendarOpen(calModal.hidden));
+      document
+        .getElementById("calPrev")
+        .addEventListener("click", () => moveMonth(-1));
+      document
+        .getElementById("calNext")
+        .addEventListener("click", () => moveMonth(1));
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && !calModal.hidden) setCalendarOpen(false);
+      });
+
+      // Email/password authentication and opt-in cloud sync.
+      const authModal = document.getElementById("authModal");
+      const authOpen = document.getElementById("authOpen");
+      const appShell = document.getElementById("appShell");
+      const authForm = document.getElementById("authForm");
+      const authEmail = document.getElementById("authEmail");
+      const authPassword = document.getElementById("authPassword");
+      const authMessage = document.getElementById("authMessage");
+      const authTitle = document.getElementById("authTitle");
+
+      // 타이머가 멈춘 상태에서 5분간 활동이 없으면 자동 로그아웃한다.
+      const IDLE_LOGOUT_MS = 5 * 60 * 1000;
+      let idleLogoutTimeout = null;
+
+      function clearIdleLogout() {
+        if (idleLogoutTimeout !== null) {
+          clearTimeout(idleLogoutTimeout);
+          idleLogoutTimeout = null;
+        }
+      }
+
+      function scheduleIdleLogout() {
+        clearIdleLogout();
+        if (!currentAuthUser || running) return;
+
+        idleLogoutTimeout = setTimeout(async () => {
+          idleLogoutTimeout = null;
+          // 타이머가 그사이 시작됐다면 로그아웃하지 않는다.
+          if (!currentAuthUser || running) return;
+          setAuthMessage("5분간 활동이 없어 로그아웃 중…");
+          const { error } = await supabaseClient.auth.signOut();
+          if (error) {
+            setAuthMessage("자동 로그아웃에 실패했습니다. 다시 시도해 주세요.");
+            scheduleIdleLogout();
+          } else {
+            authEmail.value = "";
+            authPassword.value = "";
+            setAuthMessage("5분간 활동이 없어 로그아웃되었습니다.");
+          }
+        }, IDLE_LOGOUT_MS);
+      }
+
+      function noteUserActivity() {
+        if (!currentAuthUser) return;
+        if (running) {
+          clearIdleLogout();
+          return;
+        }
+        scheduleIdleLogout();
+      }
+
+      // 키보드·마우스·터치 활동만 idle 타이머를 다시 시작한다.
+      ["pointerdown", "keydown", "touchstart", "wheel"].forEach((eventName) => {
+        document.addEventListener(eventName, noteUserActivity, { passive: true });
+      });
+
+      function setAuthMessage(message) {
+        authMessage.textContent = message || "";
+      }
+
+      function updateAuthButton() {
+        const signedIn = !!currentAuthUser;
+        appShell.hidden = !signedIn;
+        authModal.hidden = signedIn;
+        authTitle.textContent = "로그인";
+        authPassword.autocomplete = "current-password";
+        authForm.hidden = signedIn;
+        document.title = signedIn ? "Pomodoro" : "로그인 · Pomodoro";
+        if (signedIn) {
+          scheduleIdleLogout();
+        } else {
+          clearIdleLogout();
+        }
+      }
+
+      async function loadCloudHistory() {
+        if (!currentAuthUser) {
+          cloudHistory = {};
+          renderCalendar();
+          return;
+        }
+        const { data, error } = await supabaseClient
+          .from("pomodoro_daily_records")
+          .select("record_date,focus_seconds")
+          .eq("user_id", currentAuthUser.id);
+        if (error) {
+          console.warn("클라우드 기록 불러오기 실패:", error.message);
+          setAuthMessage(
+            "로그인은 되었지만 기록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.",
+          );
+          return;
+        }
+        cloudHistory = {};
+        for (const row of data || []) {
+          cloudHistory[row.record_date] = Number(row.focus_seconds) || 0;
+        }
+        renderCalendar();
+      }
+
+      async function saveNewFocusTimeToCloud(elapsedSeconds) {
+        if (
+          !currentAuthUser ||
+          !Number.isFinite(elapsedSeconds) ||
+          elapsedSeconds <= 0
+        ) {
+          return;
+        }
+
+        const recordDate = getLocalDateKey();
+        try {
+          const { data: existing, error: readError } = await supabaseClient
+            .from("pomodoro_daily_records")
+            .select("focus_seconds")
+            .eq("user_id", currentAuthUser.id)
+            .eq("record_date", recordDate)
+            .maybeSingle();
+          if (readError) throw readError;
+
+          const nextSeconds =
+            (Number(existing?.focus_seconds) || 0) + Math.floor(elapsedSeconds);
+          const { error: saveError } = await supabaseClient
+            .from("pomodoro_daily_records")
+            .upsert(
+              {
+                user_id: currentAuthUser.id,
+                record_date: recordDate,
+                focus_seconds: nextSeconds,
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: "user_id,record_date" },
+            );
+          if (saveError) throw saveError;
+
+          cloudHistory[recordDate] = nextSeconds;
+          renderCalendar();
+        } catch (error) {
+          console.warn("클라우드 기록 저장 실패:", error.message || error);
+          setAuthMessage(
+            "기록을 클라우드에 저장하지 못했어요. 이 기기의 기록은 유지돼요.",
+          );
+        }
+      }
+
+      // 로그인 전에는 앱 전체를 숨기고 로그인 화면만 표시한다.
+      authOpen.addEventListener("click", async () => {
+        setAuthMessage("로그아웃 중…");
+        const { error } = await supabaseClient.auth.signOut();
+
+        if (error) {
+          setAuthMessage("로그아웃에 실패했습니다. 다시 시도해 주세요.");
+          return;
+        }
+
+        authEmail.value = "";
+        authPassword.value = "";
+        setAuthMessage("");
+      });
+      authForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const email = authEmail.value.trim();
+        const password = authPassword.value;
+        setAuthMessage("로그인 중…");
+        const { error } = await supabaseClient.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (error) {
+          setAuthMessage("로그인 실패. 다시 시도해 주세요.");
+          return;
+        }
+        setAuthMessage("로그인 성공! 🥳");
+        scheduleIdleLogout();
+      });
+      supabaseClient.auth.onAuthStateChange((_event, session) => {
+        currentAuthUser = session?.user || null;
+        setAuthMessage("");
+        updateAuthButton();
+        if (currentAuthUser) {
+          // Defer data access until after the auth callback returns.
+          setTimeout(() => loadCloudHistory(), 0);
+        } else {
+          cloudHistory = {};
+          renderCalendar();
+        }
+      });
+      (async () => {
+        const { data } = await supabaseClient.auth.getSession();
+        currentAuthUser = data.session?.user || null;
+        updateAuthButton();
+        if (currentAuthUser) await loadCloudHistory();
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,25 @@
+# 운영체제 파일
+
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 에디터 및 IDE 설정
+
+.vscode/
+.idea/
+
+# 로그 파일
+
+*.log
+
+# 환경변수 및 비밀 정보
+
+.env
+.env.*
+!.env.example
+
+# 임시 파일
+
+*.tmp
+*.bak
