@@ -2236,10 +2236,14 @@
 
       function fmtShort(sec) {
         sec = Math.floor(sec);
-        if (sec <= 0) return "";
+        // 1분 미만은 표기하지 않는다.
+        if (sec < 60) return "";
         const h = Math.floor(sec / 3600);
         const m = Math.floor((sec % 3600) / 60);
-        return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+        // 4h 30m / 1h / 1m 처럼 0인 단위는 생략한다.
+        if (h === 0) return `${m}m`;
+        if (m === 0) return `${h}h`;
+        return `${h}h ${m}m`;
       }
 
       function renderCalendar() {
@@ -2395,6 +2399,8 @@
           if (idleLogoutTimeout === null) scheduleIdleLogout();
         } else {
           clearIdleLogout();
+          // 로그아웃하면 열려 있던 캘린더도 닫는다.
+          setCalendarOpen(false);
         }
       }
 
@@ -2447,31 +2453,23 @@
         }
 
         const recordDate = getLocalDateKey();
-        try {
-          const { data: existing, error: readError } = await supabaseClient
-            .from("pomodoro_daily_records")
-            .select("focus_seconds")
-            .eq("user_id", currentAuthUser.id)
-            .eq("record_date", recordDate)
-            .maybeSingle();
-          if (readError) throw readError;
+        const seconds = Math.floor(elapsedSeconds);
+        if (seconds < 1) return;
 
-          const nextSeconds =
-            (Number(existing?.focus_seconds) || 0) + Math.floor(elapsedSeconds);
-          const { error: saveError } = await supabaseClient
-            .from("pomodoro_daily_records")
-            .upsert(
-              {
-                user_id: currentAuthUser.id,
-                record_date: recordDate,
-                focus_seconds: nextSeconds,
-                updated_at: new Date().toISOString(),
-              },
-              { onConflict: "user_id,record_date" },
-            );
+        try {
+          // 서버에 "오늘 칸에 seconds초 더해줘"라고 한 번만 요청한다.
+          // (더하기 계산은 서버의 add_focus_seconds 함수가 한다)
+          const { data: total, error: saveError } = await supabaseClient.rpc(
+            "add_focus_seconds",
+            { p_date: recordDate, p_seconds: seconds },
+          );
           if (saveError) throw saveError;
 
-          cloudHistory[recordDate] = nextSeconds;
+          // 서버가 돌려준 오늘 총합으로 화면 값을 맞춘다.
+          const serverTotal = Number(total);
+          if (Number.isFinite(serverTotal)) {
+            cloudHistory[recordDate] = serverTotal;
+          }
           renderCalendar();
         } catch (error) {
           console.warn("클라우드 기록 저장 실패:", error.message || error);
