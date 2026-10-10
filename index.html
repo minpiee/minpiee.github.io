@@ -1351,6 +1351,10 @@
         if (elapsed > 0) {
           carrySeconds += postMidnightPart(elapsed);
           totalFocusSeconds += elapsed;
+          if (currentAuthUser) {
+            const k = getLocalDateKey();
+            cloudHistory[k] = (Number(cloudHistory[k]) || 0) + elapsed;
+          }
           saveNewFocusTimeToCloud(elapsed);
         }
 
@@ -1465,9 +1469,12 @@
         timeEl.textContent = format(remaining);
 
         const today = getLocalDateKey();
-        const localSeconds = totalFocusSeconds + getCurrentFocusElapsed();
-        const cloudSeconds = Number(cloudHistory[today]) || 0;
-        const displayedFocusSeconds = Math.max(localSeconds, cloudSeconds);
+        const currentElapsed = getCurrentFocusElapsed();
+        // 로그인 상태: 서버에 저장된 오늘 값 + 지금 진행 중인(아직 저장 전) 시간
+        // 로그아웃 상태: 이 기기의 로컬 기록
+        const displayedFocusSeconds = currentAuthUser
+          ? (Number(cloudHistory[today]) || 0) + currentElapsed
+          : totalFocusSeconds + currentElapsed;
 
         totalFocusEl.textContent = formatFocusTotal(displayedFocusSeconds);
 
@@ -2323,8 +2330,8 @@
       const authMessage = document.getElementById("authMessage");
       const authTitle = document.getElementById("authTitle");
 
-      // 타이머가 멈춘 상태에서 5분간 활동이 없으면 자동 로그아웃한다.
-      const IDLE_LOGOUT_MS = 5 * 60 * 1000;
+      // 타이머가 멈춘 상태에서 10분간 활동이 없으면 자동 로그아웃한다.
+      const IDLE_LOGOUT_MS = 10 * 60 * 1000;
       let idleLogoutTimeout = null;
 
       function clearIdleLogout() {
@@ -2342,7 +2349,7 @@
           idleLogoutTimeout = null;
           // 타이머가 그사이 시작됐다면 로그아웃하지 않는다.
           if (!currentAuthUser || running) return;
-          setAuthMessage("5분간 활동이 없어 로그아웃 중…");
+          setAuthMessage("10분간 활동이 없어 로그아웃 중…");
           const { error } = await supabaseClient.auth.signOut();
           if (error) {
             setAuthMessage("자동 로그아웃에 실패했습니다. 다시 시도해 주세요.");
@@ -2350,7 +2357,7 @@
           } else {
             authEmail.value = "";
             authPassword.value = "";
-            setAuthMessage("5분간 활동이 없어 로그아웃되었습니다.");
+            setAuthMessage("10분간 활동이 없어 로그아웃되었습니다.");
           }
         }, IDLE_LOGOUT_MS);
       }
@@ -2384,29 +2391,44 @@
         authForm.hidden = signedIn;
         document.title = signedIn ? "Pomodoro" : "로그인 · Pomodoro";
         if (signedIn) {
-          scheduleIdleLogout();
+          // 토큰 자동 갱신 같은 이벤트로는 대기 시간을 다시 세지 않는다.
+          if (idleLogoutTimeout === null) scheduleIdleLogout();
         } else {
           clearIdleLogout();
         }
       }
 
+      // 이미 불러왔거나 불러오는 중인 유저 id (같은 유저는 다시 불러오지 않는다)
+      let cloudLoadingFor = null;
+
       async function loadCloudHistory() {
         if (!currentAuthUser) {
+          cloudLoadingFor = null;
           cloudHistory = {};
           renderCalendar();
           return;
         }
+        if (cloudLoadingFor === currentAuthUser.id) return;
+        cloudLoadingFor = currentAuthUser.id;
         const { data, error } = await supabaseClient
           .from("pomodoro_daily_records")
           .select("record_date,focus_seconds")
           .eq("user_id", currentAuthUser.id);
         if (error) {
-          console.warn("클라우드 기록 불러오기 실패:", error.message);
+          cloudLoadingFor = null;
+          console.warn("클라우드 기록 불러오기 실패:", error);
           setAuthMessage(
             "로그인은 되었지만 기록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.",
           );
+          showToast("기록 불러오기 실패: " + (error.message || "알 수 없는 오류"));
           return;
         }
+        console.log("[클라우드 기록]", {
+          오늘키: getLocalDateKey(),
+          로그인유저: currentAuthUser.id,
+          불러온행수: (data || []).length,
+          행: data,
+        });
         cloudHistory = {};
         for (const row of data || []) {
           cloudHistory[row.record_date] = Number(row.focus_seconds) || 0;
