@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <title>Pomodoro</title>
+    <link rel="apple-touch-icon" href="icon.png" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+
+  <body>
+    <img id="bg" alt="" />
+    <div id="shade"></div>
+    <div id="toast" role="status"></div>
+
+    <!-- 분석 화면 -->
+    <div
+      id="analysisView"
+      class="calModal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="집중 분석"
+      hidden
+    >
+      <div class="calCard">
+        <button id="backToTimer" class="analysisBack" type="button">
+          ← 타이머
+        </button>
+        <div class="seg" role="tablist" aria-label="분석 기간">
+          <button
+            id="tabMonth"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            aria-controls="monthPane"
+          >
+            월간
+          </button>
+          <button
+            id="tabYear"
+            type="button"
+            role="tab"
+            class="active"
+            aria-selected="true"
+            aria-controls="yearPane"
+          >
+            연간
+          </button>
+        </div>
+
+        <!-- 월간 (기존 캘린더) -->
+        <div id="monthPane" role="tabpanel" aria-labelledby="tabMonth" hidden>
+          <div class="calHead">
+            <button id="calPrev" type="button" aria-label="이전 달">
+              <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+            </button>
+            <strong id="calTitle"></strong>
+            <button id="calNext" type="button" aria-label="다음 달">
+              <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div id="calGrid" class="calGrid"></div>
+          <div id="calSummary" class="calSummary"></div>
+        </div>
+
+        <!-- 연간 (잔디) -->
+        <div id="yearPane" role="tabpanel" aria-labelledby="tabYear">
+          <div class="yearHead">
+            <strong id="yearTitle"></strong>
+            <div class="yearNav">
+              <button id="yearPrev" type="button" aria-label="이전 해">
+                <i class="fa-solid fa-angle-left" aria-hidden="true"></i>
+              </button>
+              <button id="yearNext" type="button" aria-label="다음 해">
+                <i class="fa-solid fa-angle-right" aria-hidden="true"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="heatWrap">
+            <div
+              id="heatScroll"
+              class="heatScroll"
+              tabindex="0"
+              aria-label="연간 집중 기록 (좌우로 스크롤)"
+            >
+              <div class="heatInner">
+                <div id="heatMonths" class="heatMonths"></div>
+                <div id="heatGrid" class="heatGrid"></div>
+              </div>
+            </div>
+            <div id="heatBar" class="heatBar"></div>
+          </div>
+          <div class="heatLegend" aria-hidden="true">
+            <span>적음</span>
+            <i></i><i class="l1"></i><i class="l2"></i><i class="l3"></i
+            ><i class="l4"></i>
+            <span>많음</span>
+          </div>
+
+          <div class="statGrid">
+            <div class="statCard">
+              <div class="statLabel">
+                <i class="fa-regular fa-clock" aria-hidden="true"></i>
+                총 집중
+              </div>
+              <div class="statValue" id="statTotal">-</div>
+            </div>
+            <div class="statCard">
+              <div class="statLabel">
+                <i class="fa-regular fa-calendar" aria-hidden="true"></i>
+                집중한 날
+              </div>
+              <div class="statValue" id="statDays">0일</div>
+            </div>
+            <div class="statCard">
+              <div class="statLabel">
+                <i class="fa-solid fa-fire statIcon" aria-hidden="true"></i>
+                최장 연속일
+              </div>
+              <div class="statValue" id="statStreak">0일</div>
+            </div>
+            <div class="statCard">
+              <div class="statLabel">
+                <i
+                  class="fa-solid fa-chart-column statIcon"
+                  aria-hidden="true"
+                ></i>
+                일 평균
+              </div>
+              <div class="statValue" id="statAvg">-</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="authGate"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="authTitle"
+    >
+      <form id="authForm">
+        <h2 id="authTitle">로그인</h2>
+
+        <input
+          id="authEmail"
+          type="email"
+          autocomplete="username"
+          placeholder="이메일"
+          required
+        />
+
+        <input
+          id="authPassword"
+          type="password"
+          autocomplete="current-password"
+          placeholder="비밀번호"
+          required
+        />
+
+        <button id="authSubmit" type="submit">로그인</button>
+
+        <p id="authMessage" role="status"></p>
+      </form>
+    </div>
+
+    <div id="syncStatus" class="syncStatus" role="status" hidden>
+      <i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i>
+      <span id="syncStatusText"></span>
+    </div>
+
+    <!-- 집중 횟수: 왼쪽 위 (오른쪽 위의 분석·로그아웃 버튼 반대편) -->
+    <div class="cycleDots" id="cycleDots" role="img" aria-label="집중 0/4 완료">
+      <span class="cycleDot"></span>
+      <span class="cycleDot"></span>
+      <span class="cycleDot"></span>
+      <span class="cycleDot"></span>
+    </div>
+
+    <div id="authActions" class="authActions" hidden>
+      <button id="openAnalysis" type="button">
+        <i class="fa-solid fa-chart-simple" aria-hidden="true"></i> 분석
+      </button>
+      <button id="authLogout" type="button">로그아웃</button>
+    </div>
+    <div class="wrap" inert>
+      <div class="timerBox">
+        <div class="ring">
+          <svg viewBox="0 0 200 200" aria-hidden="true">
+            <circle class="track" cx="100" cy="100" r="92"></circle>
+
+            <circle
+              class="progress"
+              id="progress"
+              cx="100"
+              cy="100"
+              r="92"
+            ></circle>
+          </svg>
+
+          <div class="timerContent" id="timerContent">
+            <div
+              class="time"
+              id="time"
+              role="button"
+              tabindex="0"
+              aria-label="타이머 시간 설정"
+            >
+              30:00
+            </div>
+
+            <div class="totalFocus" id="totalFocus" aria-label="누적 집중 시간">
+              00:00
+            </div>
+
+            <div
+              class="settingsContent"
+              id="settingsContent"
+              aria-hidden="true"
+            >
+              <div class="settingsRows">
+                <!-- 집중 -->
+                <div class="settingsRow">
+                  <span class="settingLabel">집중</span>
+
+                  <div class="settingValue">
+                    <input
+                      id="focusInput"
+                      type="number"
+                      min="1"
+                      max="180"
+                      step="1"
+                      value="30"
+                      aria-label="집중 시간(분)"
+                    />
+                    <span>분</span>
+                  </div>
+                </div>
+
+                <!-- 짧은 휴식 -->
+                <div class="settingsRow">
+                  <span class="settingLabel">짧은 휴식</span>
+
+                  <div class="settingValue">
+                    <input
+                      id="breakInput"
+                      type="number"
+                      min="1"
+                      max="60"
+                      step="1"
+                      value="5"
+                      aria-label="짧은 휴식 시간(분)"
+                    />
+                    <span>분</span>
+                  </div>
+                </div>
+
+                <!-- 긴 휴식 (0이면 사용 안 함) -->
+                <div class="settingsRow">
+                  <span class="settingLabel">긴 휴식</span>
+
+                  <div class="settingValue">
+                    <input
+                      id="longBreakInput"
+                      type="number"
+                      min="0"
+                      max="60"
+                      step="1"
+                      value="15"
+                      aria-label="긴 휴식 시간(분), 0이면 사용 안 함"
+                    />
+                    <span>분</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="settingsActions">
+                <button id="cancelSettings" class="pillBtn" type="button">
+                  취소
+                </button>
+                <button id="saveSettings" class="pillBtn" type="button">
+                  저장
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button id="start" type="button">
+            <i class="fa-solid fa-play"></i> 시작
+          </button>
+          <button id="pause" type="button">
+            <i class="fa-solid fa-pause"></i> 정지
+          </button>
+          <button id="skip" type="button">
+            다음 <i class="fa-solid fa-right-long"></i>
+          </button>
+          <button id="finish" type="button">
+            <i class="fa-solid fa-square"></i> 종료
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.100.1"></script>
+    <script src="script.js"></script>
+  </body>
+</html>
