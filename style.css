@@ -1,0 +1,1740 @@
+/* ========================================
+   01. 폰트 불러오기
+   ======================================== */
+
+@font-face {
+  font-family: "Pretendard";
+  src: url("./fonts/PretendardVariable.woff2") format("woff2-variations");
+  font-weight: 100 900;
+  font-display: block;
+}
+
+/* ========================================
+   02. 전역 스타일 (페이지·버튼·접근성)
+   ======================================== */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: "Pretendard", Arial, sans-serif;
+}
+
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  position: relative;
+  background: #222;
+  color: white;
+  isolation: isolate;
+}
+
+/* 버튼·입력창은 글꼴을 자동으로 물려받지 않아서 따로 지정 */
+button,
+input {
+  font-family: inherit;
+}
+
+/* 공통 버튼 */
+button {
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: rgba(0, 0, 0, 0.1);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  color: white;
+  border-radius: 999px;
+  padding: 10px 17px;
+  font-size: 18px;
+  cursor: pointer;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition:
+    background 0.15s,
+    transform 0.1s;
+}
+
+/* 마우스가 있는 기기에서만 hover 효과 (터치 기기는 손을 뗀 뒤에도 hover가 남아 어둡게 보임) */
+@media (hover: hover) {
+  button:hover {
+    background: rgba(0, 0, 0, 0.4);
+  }
+}
+
+button:active {
+  background: rgba(255, 255, 255, 0.36);
+  transform: scale(0.97);
+}
+
+button:disabled {
+  opacity: 0.3;
+  cursor: default;
+  pointer-events: none;
+}
+
+/*
+  아이콘: index.html 맨 위의 SVG 스프라이트를 <use>로 불러 쓴다.
+  - <i class="icon"> 칸은 글자 크기(1em)만큼만 자리를 차지하고,
+    안의 SVG는 조금 크게(1.3em) 그려서 예전 글자형 아이콘과 비슷한 크기로 보이게 한다.
+  - 색은 주변 글자색을 그대로 따른다. (fill: currentColor)
+*/
+i.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 1em;
+  height: 1em;
+  font-style: normal;
+  line-height: 1;
+}
+
+i.icon > svg {
+  flex: none;
+  width: 1.3em;
+  height: 1.3em;
+  fill: currentColor;
+}
+
+/* 모션 줄이기 설정을 켠 사용자는 애니메이션을 거의 없앤다 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ========================================
+   03. 배경 이미지와 어두운 막
+   ======================================== */
+
+#bg {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  z-index: 0;
+  opacity: 1;
+  transition: opacity 0.6s ease;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+#shade {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.16);
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* ========================================
+   03-2. 로그인·분석 화면 배경 무늬 (크림 종이)
+   긴 SVG 주소는 여기에 한 번만 두고, #authGate와 .calModal이 var()로 가져다 쓴다.
+   - --paper-blob-green / --paper-blob-blue: 오른쪽 위·왼쪽 아래 모서리에 붙는 덩어리 무늬 / --paper-grain: 아주 옅은 종이 결
+   (무늬를 화면 가운데 기준이 아니라 모서리 기준으로 붙여서, 세로로 긴 모바일·아이패드에서도 두 덩어리가 모두 보인다)
+   무늬를 없애려면 두 화면의 background-image 줄을 지우면 된다.
+   ======================================== */
+
+:root {
+  --paper-base: #eeece0; /* 크림 종이 바탕색 */
+  --paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.35  0 0 0 0 0.28  0 0 0 0 0.15  0 0 0 0.09 0'/%3E%3C/filter%3E%3Crect width='100%' height='100%' filter='url(%23n)'/%3E%3C/svg%3E");
+  --paper-blob-green: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 500 500'%3E%3Cg fill='%23d3dfc6'%3E%3Ccircle cx='400' cy='90' r='190'/%3E%3Ccircle cx='308' cy='118' r='155'/%3E%3Ccircle cx='315' cy='108' r='130'/%3E%3Ccircle cx='434' cy='170' r='133'/%3E%3Ccircle cx='404' cy='74' r='108'/%3E%3Ccircle cx='516' cy='164' r='138'/%3E%3Ccircle cx='562' cy='133' r='158'/%3E%3Ccircle cx='340' cy='3' r='97'/%3E%3Ccircle cx='489' cy='98' r='90'/%3E%3Ccircle cx='260' cy='40' r='120'/%3E%3Ccircle cx='269' cy='64' r='55'/%3E%3Ccircle cx='213' cy='50' r='94'/%3E%3Ccircle cx='191' cy='31' r='77'/%3E%3Ccircle cx='234' cy='-2' r='67'/%3E%3Ccircle cx='367' cy='38' r='94'/%3E%3Ccircle cx='490' cy='260' r='110'/%3E%3Ccircle cx='481' cy='229' r='59'/%3E%3Ccircle cx='488' cy='266' r='83'/%3E%3Ccircle cx='422' cy='309' r='66'/%3E%3Ccircle cx='570' cy='238' r='49'/%3E%3Ccircle cx='512' cy='347' r='70'/%3E%3C/g%3E%3C/svg%3E"); /* 오른쪽 위 모서리 */
+  --paper-blob-blue: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 500 500'%3E%3Cg fill='%23d5e2e0'%3E%3Ccircle cx='100' cy='410' r='200'/%3E%3Ccircle cx='87' cy='434' r='142'/%3E%3Ccircle cx='186' cy='452' r='119'/%3E%3Ccircle cx='185' cy='442' r='92'/%3E%3Ccircle cx='88' cy='415' r='97'/%3E%3Ccircle cx='-32' cy='477' r='99'/%3E%3Ccircle cx='118' cy='521' r='165'/%3E%3Ccircle cx='36' cy='376' r='168'/%3E%3Ccircle cx='247' cy='454' r='113'/%3E%3Ccircle cx='270' cy='480' r='140'/%3E%3Ccircle cx='279' cy='491' r='80'/%3E%3Ccircle cx='279' cy='459' r='95'/%3E%3Ccircle cx='239' cy='444' r='93'/%3E%3Ccircle cx='276' cy='482' r='74'/%3E%3Ccircle cx='247' cy='431' r='80'/%3E%3Ccircle cx='220' cy='450' r='79'/%3E%3Ccircle cx='20' cy='270' r='100'/%3E%3Ccircle cx='37' cy='209' r='54'/%3E%3Ccircle cx='-22' cy='248' r='80'/%3E%3Ccircle cx='16' cy='244' r='84'/%3E%3Ccircle cx='47' cy='295' r='75'/%3E%3Ccircle cx='45' cy='305' r='46'/%3E%3C/g%3E%3C/svg%3E"); /* 왼쪽 아래 모서리 */
+  --paper-blob-size: clamp(200px, 50vmin, 560px); /* 화면 크기에 맞춰 커졌다 작아진다 */
+}
+
+/* ========================================
+   04. 메인 레이아웃과 타이머
+   ======================================== */
+
+.wrap {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px max(24px, env(safe-area-inset-right)) 24px
+    max(24px, env(safe-area-inset-left));
+}
+
+.timerBox {
+  width: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 900px;
+}
+
+.ring {
+  width: min(52vh, 430px);
+  height: min(52vh, 430px);
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.ring > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.32);
+  stroke-width: 5;
+}
+
+.progress {
+  fill: none;
+  stroke: white;
+  stroke-width: 5;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.25s linear;
+}
+
+.timerContent {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.time {
+  font-size: clamp(34px, min(9vw, 10vh), 104px);
+  font-weight: 700;
+  letter-spacing: 2px;
+  line-height: 1;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.28);
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+}
+
+@media (hover: hover) {
+  .time:hover {
+    opacity: 0.88;
+  }
+}
+
+.time:active {
+  transform: scale(0.98);
+}
+
+.totalFocus {
+  margin-top: 8px;
+  font-size: clamp(16px, 3vw, 25px);
+  font-weight: 400;
+  letter-spacing: 1px;
+  opacity: 0.82;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+}
+
+/* ========================================
+   05. 설정 패널
+   ======================================== */
+
+.settingsContent {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  visibility: hidden;
+  pointer-events: none;
+  transition: visibility 0.18s ease;
+}
+
+.settingsContent.open {
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/*
+  서서히 나타나는 효과(opacity)는 상자 전체(.settingsContent)가 아니라 안의 항목에 각각 준다.
+  상자 전체에 주면, 그 안의 취소·저장 버튼은 나타나는 동안 "뒤 사진을 흐리게 비추는 효과"가 적용되지 않다가
+  다 나타난 뒤에야 한꺼번에 생겨서 배경이 늦게 보였다.
+  (버튼은 .settingsActions 같은 감싸는 칸이 아니라 버튼 자신에게 효과를 준다)
+
+  설정 화면 구조
+    집중     짧은 휴식    긴 휴식
+    30분       5분         15분
+         취소    저장
+*/
+.settingsRows {
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: center;
+  gap: clamp(16px, 4vw, 36px);
+}
+
+.settingsContent.open .settingsRows,
+.settingsContent.open .pillBtn {
+  opacity: 1;
+}
+
+.timerContent.is-settings .time,
+.timerContent.is-settings .totalFocus {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.settingsRow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 74px;
+}
+
+.settingLabel {
+  margin-bottom: 7px;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.76);
+  white-space: nowrap;
+}
+
+.settingValue {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 3px;
+  min-height: 52px;
+}
+
+.settingValue input {
+  width: 62px;
+  height: 52px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.38);
+  outline: 0;
+  background: transparent;
+  color: #fff;
+  font-size: clamp(30px, 6vw, 42px);
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  transition:
+    border-color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.settingValue input:focus {
+  border-bottom-color: rgba(255, 255, 255, 0.85);
+}
+
+/* 숫자 입력칸의 위아래 화살표 숨김 */
+.settingValue input::-webkit-inner-spin-button,
+.settingValue input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.settingValue input[type="number"] {
+  appearance: textfield;
+}
+
+.settingValue span {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
+}
+
+/* 취소·저장 버튼 줄 (입력칸 3개 아래에 나란히) */
+.settingsActions {
+  display: flex;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+/* 알약 모양 버튼 (설정의 취소·저장) */
+.pillBtn {
+  min-width: 68px;
+  min-height: 38px;
+  padding: 7px 15px;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 16px;
+  font-weight: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 배경 · 흐림 효과 · 마우스를 올렸을 때/눌렀을 때 색은 공통 버튼(button)과 같은 규칙을 그대로 쓴다.
+     설정 패널이 열릴 때 서서히 나타나는 효과는 이 버튼 자신(opacity)에 준다. (위의 .settingsContent.open .pillBtn 참고) */
+  opacity: 0;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    transform 0.1s,
+    opacity 0.18s ease;
+}
+
+/* ========================================
+   06. 타이머 버튼 (시작·정지·다음·종료)
+   ======================================== */
+
+.controls {
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 24px;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 9px;
+  justify-content: center;
+  align-items: center;
+}
+
+.controls button {
+  flex: 0 0 auto;
+  min-width: 0;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  font-size: 17px;
+}
+
+.controls button i {
+  font-size: 0.85em;
+}
+
+/* ========================================
+   07. 토스트 알림
+   ======================================== */
+
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: max(70px, calc(56px + env(safe-area-inset-bottom)));
+  transform: translateX(-50%) translateY(18px);
+  opacity: 0;
+  transition:
+    opacity 0.35s,
+    transform 0.35s;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  font-size: 13px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 60;
+  max-width: calc(100vw - 48px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+
+#toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ========================================
+   08. 분석 화면 공통 (창·탭·요약)
+   ======================================== */
+
+.calModal {
+  /* 집중량 단계별 색: 주간 막대 · 연간 잔디 · 범례가 같은 색을 쓴다 */
+  --lv0: rgba(63, 74, 68, 0.11); /* 0단계: 기록 없음 (배경보다 살짝 어두운 청회색) */
+  --lv1: #d3e0bd;
+  --lv2: #aac88a;
+  --lv3: #7fa862;
+  --lv4: #55803f;
+  /* 밝은 배경용 글자색 (크림 종이 위의 짙은 청회색, 로그인 화면과 같은 색) */
+  --ink: #3f4a44;
+  --ink-soft: rgba(63, 74, 68, 0.72);
+  --ink-faint: rgba(63, 74, 68, 0.55);
+  --sun: #d4574d;
+  --sat: #3f78b8;
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  overflow-y: auto;
+  /* 크림 종이: 단색 바탕 + 덩어리 무늬 + 아주 옅은 종이 결 (이미지 파일 없이 CSS만 사용) */
+  background-color: var(--paper-base);
+  background-image:
+    var(--paper-grain),
+    var(--paper-blob-green),
+    var(--paper-blob-blue);
+  background-size:
+    220px 220px,
+    var(--paper-blob-size) var(--paper-blob-size),
+    var(--paper-blob-size) var(--paper-blob-size);
+  background-position:
+    0 0,
+    right top,
+    left bottom;
+  background-repeat: repeat, no-repeat, no-repeat;
+  color: var(--ink);
+  text-align: center;
+}
+
+.calCard {
+  width: 100%;
+  max-width: 700px;
+  min-height: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  padding: 18px max(18px, env(safe-area-inset-right))
+    calc(env(safe-area-inset-bottom, 0px) + 46px)
+    max(18px, env(safe-area-inset-left));
+}
+
+/* 주간 / 월간 / 연간 탭 */
+
+/* 위에서 아래 순서: 탭 → 제목·화살표 헤더 → 요약(.statHero) → 본문(그래프·달력·잔디)
+   아래 간격(margin-bottom): 헤더 아래(약 44~47px) ≈ 탭 아래 ≈ 요약(.statHero) 아래.
+   제목과 요약 사이는 모든 탭(주간·월간·연간)에서 같은 넉넉한 간격으로 둔다. (비교 문장이 있든 없든 같다)
+   탭·요약 아래 간격은 화면 높이(svh)에 비례해 늘어나고, 최솟값(32px / 40px)이 작은 화면(아이폰 SE 등)의 간격이다. */
+.seg {
+  display: flex;
+  gap: 4px;
+  width: fit-content;
+  margin: 0 auto clamp(32px, 5svh, 64px);
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* 기본값 = PC·태블릿(601px 이상). 모바일(600px 이하)은 아래 미디어 쿼리에서 따로 정한다. */
+.seg button {
+  height: 30px;
+  padding: 0 20px;
+  font-size: 15px;
+  line-height: 1;
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  opacity: 0.75;
+}
+
+.seg button.active {
+  background: rgba(255, 255, 255, 0.28);
+  opacity: 1;
+}
+
+@media (hover: hover) {
+  .seg button:hover:not(.active) {
+    background: rgba(255, 255, 255, 0.12);
+  }
+}
+
+/* 요약 (주간 · 월간 · 연간 공통, 제목·화살표 헤더 바로 아래):
+   "이번 달은 / 총 34시간 20분 집중했어요 / ▲ 지난달보다 2시간 늘었어요 / 13일 동안, 하루 평균 2시간 38분 집중했어요" 형태 */
+
+.statHero {
+  margin: 0 0 clamp(40px, 5svh, 72px);
+  text-align: left;
+}
+
+.statHeroLead {
+  font-size: 14px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.statHeroMain {
+  margin: 6px 0 14px; /* 위 "이번 주는"과는 가깝게, 아래 설명 줄들과는 한 칸 더 띄운다 */
+  font-size: 26px;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  word-break: keep-all; /* 길면 '시간'과 '분' 사이에서만 줄바꿈 */
+}
+
+.statHeroMain span {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.statHeroSub {
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* 설명 줄이 여러 줄이면 줄 사이를 살짝 띄운다 (비교 문장 / 평균 문장) */
+.statHeroSub + .statHeroSub {
+  margin-top: 4px;
+}
+
+/* 요약 문장 안의 시간·날짜 숫자만 흰색으로 강조 (script.js의 hl 함수가 붙인다) */
+.statHeroSub .hl {
+  color: #fff;
+}
+
+/* 비교 문장 앞 화살표: 더 집중했으면 붉은 ▲, 덜 집중했으면 파란 ▼ (script.js의 compareNote가 붙인다) */
+.statHeroSub .cmpArrow {
+  margin-right: 5px;
+  vertical-align: -0.2em;
+}
+
+.statHeroSub .cmpArrow.up {
+  color: #ff9a9a;
+}
+
+.statHeroSub .cmpArrow.down {
+  color: #9ac2ff;
+}
+
+/* ========================================
+   09. 월간 캘린더
+   ======================================== */
+
+/* 주간·월간·연간 헤더는 탭 바로 아래에 오고, 높이를 같은 값(--headH)으로 맞춰 탭을 바꿔도 제목이 같은 높이에 온다
+   아래 간격(46.5px / 아이폰 43.5px)은 모든 탭에서 같게 둔다 (요약 첫 줄이 "이번 주는"으로 시작해 제목과 겹쳐 보이지 않도록) */
+.calHead,
+.yearHead {
+  --headH: 40px;
+  height: var(--headH);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 46.5px; /* 아이폰은 아래 미디어쿼리에서 43.5px */
+  text-align: left;
+}
+
+.calHead strong,
+.yearHead strong {
+  font-size: 20px;
+  font-weight: 400;
+  letter-spacing: 0.5px;
+}
+
+/* 화살표 모양이 버튼 가운데에 있어서, 버튼 여백만큼 당겨 달력 오른쪽 끝선에 맞춘다 */
+.calNav,
+.yearNav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: -13px;
+}
+
+/* 주·월·연 이동 화살표는 같은 모양 */
+.calHead button,
+.yearNav button {
+  width: 40px;
+  height: var(--headH);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  font-size: 24px;
+}
+
+.calHead button i,
+.yearNav button i {
+  font-size: 14px;
+}
+
+@media (hover: hover) {
+  .calHead button:hover,
+  .yearNav button:hover {
+    background: transparent;
+    transform: none;
+  }
+}
+
+.calHead button:active,
+.yearNav button:active {
+  background: transparent;
+  transform: none;
+  opacity: 0.5;
+}
+
+/* 달력: 선도 배경색도 없이 숫자와 시간만 가운데 줄에 놓는다. (위: 날짜 숫자, 아래: 집중 시간) */
+.calGrid {
+  display: grid;
+  /* 칸 폭을 날짜 원(.calDay b)과 같은 28px로 고정하고, 양쪽 끝에 붙여서 7칸을 고르게 벌린다.
+     첫 칸(일)은 왼쪽 끝, 마지막 칸(토)은 오른쪽 끝에 놓여 위쪽 제목·화살표와 줄이 맞는다.
+     (아이폰은 아래 미디어쿼리에서 26px로 같은 방식을 쓴다) */
+  grid-template-columns: repeat(7, 28px);
+  justify-content: space-between;
+  gap: 6px 4px;
+}
+
+.calDow {
+  padding: 4px 0 6px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.calDow:first-child {
+  color: #ff9a9a;
+}
+
+.calDow:nth-child(7) {
+  color: #9ac2ff;
+}
+
+.calDay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-height: clamp(64px, 7svh, 88px);
+  padding-top: 2px;
+}
+
+/*
+  날짜 숫자: 28px 원 안에 놓는다. 오늘은 이 원에 초록색이 칠해진다.
+  글꼴의 숫자는 상자 가운데보다 1px쯤 위에 그려져서, padding-top 1px 로 가운데에 맞춘다.
+*/
+.calDay b {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  padding-top: 1px;
+  border-radius: 50%;
+  font-size: 14px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.calDay:nth-child(7n + 1) b {
+  color: #ff9a9a;
+}
+
+.calDay:nth-child(7n) b {
+  color: #9ac2ff;
+}
+
+.calDay span {
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap; /* 좁은 칸에서 "2시간 2분"이 줄바꿈되지 않게 */
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* 오늘 이후 날짜는 더 흐리게 */
+.calDay.future b {
+  opacity: 0.4;
+}
+
+/* 오늘: 숫자 뒤에 초록 원 */
+.calDay.today b {
+  background: #617c50;
+  color: #fff;
+}
+
+/* ========================================
+   09-2. 주간 막대 그래프
+   ======================================== */
+
+/* 주간 제목은 날짜 범위가 길 수 있어 글자 간격을 줄인다 */
+#weekTitle {
+  letter-spacing: 0;
+}
+
+.weekBars {
+  --barMax: clamp(
+    220px,
+    24svh,
+    320px
+  ); /* 가장 높은 막대의 높이 (화면 높이에 비례) */
+  --stackGap: 8px; /* 막대 위 시간 · 막대 · 요일·날짜 묶음 사이의 세로 간격 (함께 바뀐다) */
+  --labelGap: 0px; /* 요일과 날짜 사이의 간격 */
+  --timeH: 16px; /* 막대 위 시간 글자가 차지하는 높이 (아이폰 세로는 두 줄이라 32px) */
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+  position: relative;
+}
+
+.weekCol {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--stackGap);
+  min-width: 0;
+}
+
+/* 아직 오지 않은 날은 흐리게 */
+.weekCol.future {
+  opacity: 0.4;
+}
+
+/* 막대와 그 위의 시간 글자가 들어가는 칸. 막대는 아래쪽 선에 붙는다
+   높이 = 가장 높은 막대 + 시간 글자 + 그 사이 간격 + 여유 2px */
+.weekTrack {
+  width: 100%;
+  height: calc(var(--barMax) + var(--timeH) + var(--stackGap) + 2px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--stackGap);
+}
+
+.weekTime {
+  font-size: 13px;
+  line-height: 16px;
+  color: rgba(255, 255, 255, 0.8);
+  white-space: nowrap;
+}
+
+.weekBar {
+  display: block;
+  width: min(58%, 52px);
+  height: calc(var(--barMax) * var(--p, 0));
+  min-height: 8px;
+  border-radius: 999px;
+  background: var(--lv0);
+}
+
+.weekCol.today .weekBar {
+  box-shadow: 0 0 0 1.5px #fff;
+}
+
+/* 요일 + 날짜 묶음 (둘 사이 간격은 --labelGap) */
+.weekLabel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--labelGap);
+}
+
+/* 요일 글자: 일 빨강, 토 파랑, 오늘은 흰색 */
+.weekDow {
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 20px;
+}
+
+.weekCol:first-child .weekDow {
+  color: #ff9a9a;
+}
+
+.weekCol:last-child .weekDow {
+  color: #9ac2ff;
+}
+
+.weekCol.today .weekDow {
+  color: #fff;
+}
+
+.weekDate {
+  font-size: 13px;
+  line-height: 18px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* 오늘이 아닌 지난 날: 요일과 날짜를 같은 정도로 흐리게 (오늘 이후는 열 전체가 이미 흐려서 제외) */
+.weekCol:not(.today):not(.future) .weekDow,
+.weekCol:not(.today):not(.future) .weekDate {
+  opacity: 0.35;
+}
+
+.weekCol:not(.today):not(.future) .weekDate {
+  color: #fff;
+}
+
+/* ========================================
+   10. 연간 잔디
+   ======================================== */
+
+.heatWrap {
+  position: relative;
+}
+
+/* 가로 스크롤: 기본 스크롤바는 숨기고 .heatBar로 대신 보여준다 */
+.heatScroll {
+  overflow-x: auto;
+  padding-bottom: 10px;
+  scrollbar-width: none;
+  cursor: grab;
+}
+
+.heatScroll::-webkit-scrollbar {
+  display: none;
+}
+
+.heatScroll.dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
+/* 잔디 영역을 키보드로 포커스했을 때만 테두리를 보여 준다 */
+.heatScroll:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.7);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.heatBar {
+  position: absolute;
+  left: 0;
+  bottom: 1px;
+  height: 4px;
+  width: 0;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.55);
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+
+.heatInner {
+  --cell: 14px;
+  --gap: 3px;
+  position: relative;
+  width: max-content;
+}
+
+.heatMonths {
+  position: relative;
+  height: 22px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.heatMonths span {
+  position: absolute;
+  top: 0;
+  left: calc(var(--col) * (var(--cell) + var(--gap)));
+  white-space: nowrap;
+}
+
+.heatGrid {
+  display: grid;
+  grid-template-rows: repeat(7, var(--cell));
+  grid-auto-flow: column;
+  grid-auto-columns: var(--cell);
+  gap: var(--gap);
+}
+
+.heatCell {
+  width: var(--cell);
+  height: var(--cell);
+  border-radius: 3px;
+  background: var(--lv0);
+}
+
+.heatCell.empty {
+  visibility: hidden;
+}
+
+/* 집중 시간 단계별 색: 주간 막대 · 연간 잔디 · 범례가 같은 기준(하루 집중 시간)을 쓴다.
+   (기준 시간은 script.js의 heatLevel 참고)
+   0단계(기록 없음)는 각자의 기본색을 쓰고, 1~4단계만 아래에서 색을 입힌다. */
+.weekBar.l1,
+.heatCell.l1,
+.heatLegend i.l1 {
+  background: var(--lv1);
+}
+
+.weekBar.l2,
+.heatCell.l2,
+.heatLegend i.l2 {
+  background: var(--lv2);
+}
+
+.weekBar.l3,
+.heatCell.l3,
+.heatLegend i.l3 {
+  background: var(--lv3);
+}
+
+.weekBar.l4,
+.heatCell.l4,
+.heatLegend i.l4 {
+  background: var(--lv4);
+}
+
+.heatCell.today {
+  box-shadow: 0 0 0 1.5px #fff;
+}
+
+.heatLegend {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  margin-top: 8px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* 0단계: 잔디의 "기록 없음" 칸(.heatCell)과 같은 색 */
+.heatLegend i {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: var(--lv0);
+}
+
+.heatLegend span:first-child {
+  margin-right: 3px;
+}
+
+.heatLegend span:last-child {
+  margin-left: 3px;
+}
+
+/* ========================================
+   11. 상단 버튼 (분석 화면 닫기 · 분석 · 로그아웃)
+   ======================================== */
+
+/* 집중 횟수 표시 "0 / 4": 왼쪽 위, 분석·로그아웃 버튼과 같은 높이
+   <button>이므로 위의 공통 버튼 스타일(테두리·배경·흐림 효과)을 모두 덮어쓴다. */
+.cycleCount {
+  position: fixed;
+  z-index: 30;
+  top: 18px;
+  left: max(18px, env(safe-area-inset-left));
+  display: flex;
+  align-items: center;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+/* 공통 버튼의 hover·active 효과(배경 · 축소)가 끼어들지 않게 */
+.cycleCount:hover,
+.cycleCount:active {
+  background: transparent;
+  transform: none;
+}
+
+.cycleCount:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
+
+/* 눈에 보이는 크기는 그대로 두고, 손가락으로 누를 수 있는 영역만 넓힌다. */
+.cycleCount::before {
+  content: "";
+  position: absolute;
+  inset: -6px -10px;
+}
+
+.authActions {
+  position: fixed;
+  z-index: 30;
+  top: 18px;
+  right: max(18px, env(safe-area-inset-right));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.authActions[hidden] {
+  display: none;
+}
+
+/* 닫기 버튼과 계정 버튼의 높이·글자 크기를 통일 */
+.analysisBack,
+.authActions button {
+  height: 32px;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.authActions button {
+  padding: 0 12px;
+}
+
+.analysisBack {
+  align-self: flex-start;
+  margin-bottom: 18px;
+  padding: 0 13px;
+  border: 0 none;
+  /* 화살표 아이콘과 글자를 한 줄로 세로 가운데 맞춤 */
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.analysisBack i {
+  font-size: 0.85em;
+}
+
+/* 분석 버튼의 폰트어썸 아이콘 */
+#openAnalysis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+#openAnalysis i {
+  font-size: 14px;
+}
+
+/* 서버에 못 올린 집중 기록이 있을 때 왼쪽 위에 보이는 작은 표시 */
+.syncStatus {
+  position: fixed;
+  z-index: 30;
+  top: 54px; /* 왼쪽 위 집중 횟수 표시(32px) 바로 아래 */
+  left: max(18px, env(safe-area-inset-left));
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.1);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  color: white;
+  font-size: 13px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.syncStatus[hidden] {
+  display: none;
+}
+
+/* 분석 화면이 열려 있는 동안에는 "저장 대기"·집중 횟수 표시를 숨긴다. (왼쪽 위 "← 타이머" 버튼과 겹침 방지) */
+#analysisView:not([hidden]) ~ .syncStatus,
+#analysisView:not([hidden]) ~ .cycleCount {
+  visibility: hidden;
+}
+
+/* ========================================
+   11-2. 분석 화면 글자색 (밝은 배경용)
+   분석 화면(.calModal) 안에서만 흰 글자를 짙은 갈색으로 바꾼다. 메인 화면에는 영향 없음.
+   .calModal 을 앞에 붙여 우선순위를 높였으므로 순서와 상관없이 적용된다.
+   ======================================== */
+
+.calModal button {
+  color: var(--ink);
+}
+
+.calModal .seg {
+  background: rgba(63, 74, 68, 0.12);
+}
+
+.calModal .seg button.active {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+@media (hover: hover) {
+  .calModal .seg button:hover:not(.active) {
+    background: rgba(255, 255, 255, 0.35);
+  }
+
+  .calModal .analysisBack:hover {
+    background: rgba(63, 74, 68, 0.2);
+  }
+}
+
+.calModal .analysisBack {
+  border: 0 none;
+  background: rgba(63, 74, 68, 0.1);
+}
+
+.calModal .analysisBack:active {
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.calModal .statHeroLead,
+.calModal .statHeroSub,
+.calModal .calDow,
+.calModal .calDay b,
+.calModal .weekDate {
+  color: var(--ink-soft);
+}
+
+.calModal .statHeroMain span,
+.calModal .weekTime,
+.calModal .calDay span,
+.calModal .heatMonths,
+.calModal .heatLegend {
+  color: var(--ink);
+}
+
+.calModal .statHeroSub .hl,
+.calModal .weekCol.today .weekDow,
+.calModal .weekCol:not(.today):not(.future) .weekDate {
+  color: var(--ink);
+}
+
+.calModal .statHeroSub .cmpArrow.up {
+  color: var(--sun);
+}
+
+.calModal .statHeroSub .cmpArrow.down {
+  color: var(--sat);
+}
+
+.calModal .calDow:first-child,
+.calModal .calDay:nth-child(7n + 1) b,
+.calModal .weekCol:first-child .weekDow {
+  color: var(--sun);
+}
+
+.calModal .calDow:nth-child(7),
+.calModal .calDay:nth-child(7n) b,
+.calModal .weekCol:last-child .weekDow {
+  color: var(--sat);
+}
+
+.calModal .calDay.today b {
+  color: #fff;
+}
+
+.calModal .heatScroll:focus-visible {
+  outline-color: var(--ink-soft);
+}
+
+.calModal .heatBar {
+  background: var(--ink-faint);
+}
+
+/* ========================================
+   12. 로그인 화면
+   ======================================== */
+
+#authGate {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  /* 크림 종이: 단색 바탕 + 덩어리 무늬 + 아주 옅은 종이 결 (이미지 파일 없이 CSS만 사용) */
+  background-color: var(--paper-base);
+  background-image:
+    var(--paper-grain),
+    var(--paper-blob-green),
+    var(--paper-blob-blue);
+  background-size:
+    220px 220px,
+    var(--paper-blob-size) var(--paper-blob-size),
+    var(--paper-blob-size) var(--paper-blob-size);
+  background-position:
+    0 0,
+    right top,
+    left bottom;
+  background-repeat: repeat, no-repeat, no-repeat;
+  /* 밝은 배경용 글자색 (크림 종이 위의 짙은 청회색) */
+  --ink: #3f4a44;
+  --ink-soft: rgba(63, 74, 68, 0.72);
+  --ink-faint: rgba(63, 74, 68, 0.55);
+  color: var(--ink);
+  text-align: center;
+}
+
+/* 로그인 기록이 있는 채로 열었을 때(새로고침)는 로그인 창을 처음부터 숨긴다.
+   index.html 맨 위의 짧은 코드가 html에 hasSession을 붙인다.
+   script.js가 정하는 값(style.display)이 이 규칙보다 우선하므로, 실제 로그인 상태가 다르면 그쪽이 화면을 바로잡는다. */
+html.hasSession #authGate {
+  display: none;
+}
+
+#authForm {
+  width: min(100%, 360px);
+  padding: 28px;
+  border-radius: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* 로그인 창 위쪽: 제목("로그인") + 소개 문구 */
+.authIntro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 26px;
+}
+
+.authHeadline {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 1.3;
+  letter-spacing: 0.5px;
+}
+
+.authSub {
+  font-size: 15px;
+  color: var(--ink-soft);
+}
+
+/* 로그인 창 맨 아래 문구: 두 줄 사이를 살짝 띄운다 */
+.authFoot {
+  margin: 4px 0 0;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--ink-faint);
+}
+
+.authFoot span {
+  display: block;
+}
+
+.authFoot span + span {
+  margin-top: 0.45em;
+}
+
+/* 이메일·비밀번호 입력창 */
+#authEmail,
+#authPassword {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ink);
+  font: inherit;
+  outline: none;
+  box-shadow: none;
+  caret-color: var(--ink);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+/* 입력창 안내 문구 */
+#authEmail::placeholder,
+#authPassword::placeholder {
+  color: var(--ink-faint);
+  opacity: 1;
+}
+
+#authMessage {
+  margin: 12px 0 0;
+  min-height: 1.4em;
+  font-size: 14px;
+  opacity: 0.9;
+  white-space: pre-line;
+}
+
+/* 로그인 버튼 기본 상태 */
+#authSubmit {
+  border: 1px solid transparent;
+  outline: none;
+  box-shadow: none;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+  margin-top: 15px;
+  border-radius: 6px;
+  background: #55705f;
+  color: #fff;
+}
+
+/* 로그인 버튼 위에 마우스를 올렸을 때 더 밝게 */
+@media (hover: hover) {
+  #authSubmit:hover {
+    background: #657f6f;
+  }
+}
+
+/* 입력창 포커스 및 키보드로 선택한 로그인 버튼의 강조 표시 */
+#authEmail:focus,
+#authPassword:focus,
+#authSubmit:focus-visible {
+  border-color: rgba(63, 74, 68, 0.45);
+  box-shadow: 0 0 0 3px rgba(63, 74, 68, 0.08);
+}
+
+/* 저장된 이메일을 골라도 입력창 배경이 원래 색 그대로 유지되게 하기 */
+#authEmail:-webkit-autofill,
+#authPassword:-webkit-autofill {
+  -webkit-text-fill-color: #3f4a44;
+  caret-color: #3f4a44;
+  transition: background-color 600000s 0s;
+}
+
+/* ========================================
+   13. 반응형
+   위쪽 기본 규칙을 덮어써야 하므로 순서를 바꾸지 말 것.
+
+     (기본값)                       노트북 · PC · 아이패드 가로
+     폭 601px 이상 + 높이 700px 이상  로그인 입력창·버튼을 키움
+     폭 601px 이상                  요약 글자 크기를 키움
+     폭 600px 이하                  아이폰 세로 (14 프로 = 393×852px)
+     폭 600px 이하 / 세로 + 폭 1100px 이하   타이머 좌우 여백을 16px로 (아이폰·아이패드 세로)
+     세로 + 폭 601~1100px           아이패드 프로 세로 (11" 834px / 12.9" 1024px)
+     가로 + 높이 500px 이하         아이폰 가로 (14 프로 = 852×393px)
+   ======================================== */
+
+/* ---------- PC · 아이패드: 로그인 입력창·버튼 크기 ----------
+   폭과 높이가 모두 넉넉할 때만 적용한다. 아이폰(세로·가로)은 위쪽 기본 크기를 그대로 쓴다.
+   입력창 너비 340px = 로그인 창 396px − 좌우 여백 28px × 2 (화면이 더 좁으면 자동으로 줄어든다) */
+@media (min-width: 601px) and (min-height: 700px) {
+  #authForm {
+    width: min(100%, 396px);
+  }
+
+  #authEmail,
+  #authPassword,
+  #authSubmit {
+    height: 54px;
+  }
+}
+
+@media (min-width: 601px) {
+  .statHeroLead {
+    font-size: 15px;
+  }
+
+  .statHeroMain {
+    font-size: 34px;
+  }
+
+  .statHeroMain span {
+    font-size: 20px;
+  }
+
+  .statHeroSub {
+    font-size: 15px;
+  }
+}
+
+/* ---------- 아이폰·아이패드 세로: 좌우 여백 ---------- */
+@media (max-width: 600px), (orientation: portrait) and (max-width: 1100px) {
+  .wrap {
+    padding: 24px max(16px, env(safe-area-inset-right)) 24px
+      max(16px, env(safe-area-inset-left));
+  }
+}
+
+/* ---------- 아이폰 세로 ---------- */
+@media (max-width: 600px) {
+  /* 타이머 */
+  .timerBox {
+    transform: translateY(-10px);
+  }
+
+  .ring {
+    width: min(72vw, 280px);
+    height: min(72vw, 280px);
+  }
+
+  .track,
+  .progress {
+    stroke-width: 9;
+  }
+
+  /* 주간·월간 집중 시간: 시간 / 분을 두 줄로 */
+  .tu {
+    display: block;
+    text-align: center;
+  }
+
+  /* 두 줄이 들어갈 만큼 막대 위쪽 칸을 늘린다 */
+  .weekBars {
+    --timeH: 32px;
+  }
+
+  .time {
+    font-size: 64px;
+  }
+
+  .totalFocus {
+    font-size: 18px;
+  }
+
+  .controls {
+    gap: 5px;
+  }
+
+  .controls button {
+    padding: 7px 10px;
+    font-size: 15px;
+  }
+
+  .controls button i {
+    font-size: 0.8em;
+  }
+
+  /* 설정 패널 */
+  .settingsRows {
+    gap: 14px;
+  }
+
+  .settingsRow {
+    min-width: 64px;
+  }
+
+  .settingLabel {
+    font-size: 14px;
+  }
+
+  .settingValue input {
+    width: 46px;
+    font-size: 26px;
+  }
+
+  .settingsActions {
+    margin-top: 12px;
+    gap: 10px;
+  }
+
+  .pillBtn {
+    min-width: 60px;
+    min-height: 36px;
+    padding: 6px 12px;
+    font-size: 14px;
+  }
+
+  /* 상단 버튼 · 표시 */
+  .cycleCount {
+    top: max(18px, env(safe-area-inset-top));
+    height: 30px;
+  }
+
+  .authActions {
+    top: max(18px, env(safe-area-inset-top));
+    gap: 6px;
+  }
+
+  .analysisBack,
+  .authActions button {
+    height: 30px;
+    font-size: 12px;
+  }
+
+  .authActions button {
+    padding: 0 10px;
+  }
+
+  .syncStatus {
+    top: calc(max(18px, env(safe-area-inset-top)) + 36px);
+    height: 30px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+
+  /* 분석 화면 */
+  .calCard {
+    padding-top: max(18px, env(safe-area-inset-top));
+  }
+
+  .seg button {
+    height: 24px;
+    padding: 0 14px;
+    font-size: 12px;
+  }
+
+  .calHead strong,
+  .yearHead strong {
+    font-size: 18px;
+  }
+
+  .calNav,
+  .yearNav {
+    margin-right: -10px;
+  }
+
+  .calHead,
+  .yearHead {
+    --headH: 32px;
+    margin-bottom: 43.5px;
+  }
+
+  .calHead button,
+  .yearNav button {
+    width: 32px;
+    font-size: 18px;
+  }
+
+  .calHead button i,
+  .yearNav button i {
+    font-size: 12px;
+  }
+
+  .calGrid {
+    grid-template-columns: repeat(7, 26px); /* 모바일 날짜 원(.calDay b) 크기 */
+    justify-content: space-between; /* 고정폭 칸을 양쪽 끝에 붙여 헤더 너비와 맞춘다 */
+    gap: 4px 3px;
+  }
+
+  .calDow {
+    font-size: 12px;
+  }
+
+  .calDay {
+    min-height: clamp(54px, 7svh, 66px);
+    gap: 3px;
+  }
+
+  .calDay b {
+    width: 26px;
+    height: 26px;
+    font-size: 13px;
+  }
+
+  .calDay span {
+    font-size: 11px;
+  }
+
+  .weekBars {
+    --barMax: clamp(130px, 17svh, 170px);
+    gap: 4px;
+  }
+
+  .weekDow {
+    font-size: 12px;
+  }
+
+  .weekDate {
+    font-size: 11px;
+  }
+
+  .weekBar {
+    width: min(100%, 22px);
+  }
+
+  .weekTime {
+    font-size: 12px;
+  }
+}
+
+/* ---------- 아이패드 프로 세로 ---------- */
+@media (orientation: portrait) and (min-width: 601px) and (max-width: 1100px) {
+  .ring {
+    width: min(68vw, 520px);
+    height: min(68vw, 520px);
+  }
+
+  .time {
+    font-size: clamp(70px, 11vw, 120px);
+  }
+
+  .totalFocus {
+    font-size: 28px;
+  }
+
+  .controls {
+    gap: 12px;
+  }
+}
+
+/* ---------- 아이폰 가로 (높이가 낮은 화면) ---------- */
+@media (orientation: landscape) and (max-height: 500px) {
+  .ring {
+    width: min(58vh, 280px);
+    height: min(58vh, 280px);
+  }
+
+  .track,
+  .progress {
+    stroke-width: 9;
+  }
+
+  .controls {
+    margin-top: 12px;
+    gap: 12px;
+  }
+
+  .controls button {
+    padding: 6px 10px;
+    font-size: 14px;
+  }
+
+  .time {
+    font-size: clamp(40px, min(9vw, 12vh), 82px);
+    letter-spacing: 1px;
+  }
+
+  .totalFocus {
+    margin-top: 7px;
+    font-size: 18px;
+  }
+
+  .settingsRows {
+    gap: 16px;
+  }
+
+  .settingsRow {
+    min-width: 66px;
+  }
+
+  .settingLabel {
+    font-size: 15px;
+    margin-bottom: 5px;
+  }
+
+  .settingValue {
+    min-height: 40px;
+  }
+
+  .settingValue input {
+    height: 40px;
+    font-size: 28px;
+  }
+
+  .settingValue span {
+    font-size: 15px;
+  }
+
+  .settingsActions {
+    margin-top: 8px;
+    gap: 10px;
+  }
+
+  .pillBtn {
+    min-width: 64px;
+    min-height: 38px;
+    padding: 6px 13px;
+    font-size: 15px;
+  }
+}
